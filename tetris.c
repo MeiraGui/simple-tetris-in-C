@@ -10,20 +10,22 @@
  * Global variables
 */
 
+char running = 1;            // Boolean flag for main loop excecution
+struct termios orig_termios; // Original terminal settings to restore
+
 char line, column;           // Used for the positioning of the pieces
 char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
+
 char timer = 0;              // Timer for dropping the piece over time
 char hitFloor = 0;           // Boolean flag to check if the piece has hit the floor
-char running = 1;            // Boolean flag for main loop excecution
 
+char dropCount = 0;          // Counter used to give score for quickly dropping a piece (both soft and hard dropping)
 int score = 0;               // Score earned when playing the game, fairly self-explanatory
 
 // Empty tile ' .' Filled Tile '[]'
 char Grid[32][32] = {};      // The "play area" of the game, only a 20x20 area is displayed
 
 unsigned long idum = 0;      // Essentially functions as the "seed" of the random float generator
-
-struct termios orig_termios; // Original terminal settings to restore
 
 // Pseudo-random random float generator from "Numerical Recipes in C" (page 285)
 float randomFloat() {
@@ -85,7 +87,7 @@ void gameLogic() {
         // If the 'hitFloor' flag is set, a new piece is created at the top of the screen
         line = 10; column = 16; rot = 0;
         pieceID = ((char)(randomFloat() * 7));
-        hitFloor = 0;
+        hitFloor = 0; dropCount = 0;
         // Check if the tiles directly under the piece are filled, if they are, it's game over
         if (checkLoss() != 0) {
             running = 0;
@@ -107,6 +109,7 @@ void gameLogic() {
         if (checkBoundaries() != 0) {
             line--;
             hitFloor = 1;
+            if (dropCount > 1) score += dropCount;
         }
     }
 }
@@ -122,7 +125,7 @@ void renderFrame() {
     //Grid[line][column+1] = '}';
     displayGrid();
 
-    printf("                   Score: %06d\n", score); 
+    printf("                   Score: %06d\n", score);
 
     fflush(stdout);
 }
@@ -166,7 +169,7 @@ void displayGrid() {
 }
 
 char handleInput() {   
-    char input;
+    char input, downPressed = 0;
     
     while (read(STDIN_FILENO, &input, 1) > 0) {  
         // Enter press check
@@ -177,21 +180,32 @@ char handleInput() {
         if (input == 27) {
             input = getchar();
 
+            // Arrow key presses are 'ESC' (ASCII 27), '[' then 'A', 'B', 'C' or 'D'.
+            // So to check for arrow keys, we check for those 3 inputs in sequence
             if (input == '[') {
                 input = getchar();
 
                 switch (input) {
                     case 'A': // Up
-                        //line--;
+                        // Hard dropping
+                        dropCount = 0;
+                        while (checkBoundaries() == 0) {
+                            line++;
+                            dropCount++;
+                        }
+                        line--;
+                        timer += 41;
+                        score += dropCount;
                         break;
                     case 'B': // Down
+                        // Soft dropping
                         // Setting the timer to the limit is a bit janky but ensures
                         // the floor hit check is done immediately while holding down
-                        timer += 41;
+                        timer += 41;    
+                        downPressed = 1;
                         break;
                     case 'C': // Right
                         column += 2;
-
                         if (checkBoundaries() != 0) {
                             column -= 2;
                         }
@@ -231,6 +245,14 @@ char handleInput() {
         // ANDed to 0x1F to make sure the pieces wrap around if they get out of bounds
         line &= 0x1F;
         column &= 0x1F;
+    }
+
+    if (downPressed == 1) {
+        //printf("down pressed!\n");
+        dropCount++;
+    } else {
+        //printf("down not pressed!\n");
+        dropCount = 0;
     }
     
     return 1;
