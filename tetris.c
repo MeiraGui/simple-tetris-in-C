@@ -8,7 +8,7 @@
 
 /*
  * Global variables
-*/
+ */
 
 char running = 1;            // Boolean flag for main loop excecution
 struct termios orig_termios; // Original terminal settings to restore
@@ -16,14 +16,20 @@ struct termios orig_termios; // Original terminal settings to restore
 char line, column;           // Used for the positioning of the pieces
 char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
 
+char clearedLines = 0;       // Counter for every line cleared, for every 10 lines, a level increases
+char level = 0;              // Level the game is on, determines how fast a piece drops
+
 char timer = 0;              // Timer for dropping the piece over time
 char hitFloor = 0;           // Boolean flag to check if the piece has hit the floor
 
 char dropCount = 0;          // Counter used to give score for quickly dropping a piece (both soft and hard dropping)
-int score = 0;               // Score earned when playing the game, fairly self-explanatory
+int  score = 0;              // Score earned when playing the game, fairly self-explanatory
 
 // Empty tile ' .' Filled Tile '[]'
 char Grid[32][32] = {};      // The "play area" of the game, only a 20x20 area is displayed
+
+// Based on the Game Boy version
+char fallSpeeds[21] = {53, 49, 45, 41, 37, 33, 28, 22, 17, 11, 10, 9, 8, 7, 6, 6, 5, 5, 4, 4, 3};
 
 unsigned long idum = 0;      // Essentially functions as the "seed" of the random float generator
 
@@ -73,13 +79,15 @@ int main() {
         }
     }
 
+    printf("       Game Over!\n");
+
     reg_mode();
     return 0;
 }
 
 /*
  * Tetris functions
-*/
+ */
 void gameLogic() {
     if (hitFloor) {
         checkLines();
@@ -98,10 +106,12 @@ void gameLogic() {
         clearPiece();
     }
 
+    level = clearedLines / 10;
+
     running = handleInput(); // Input handling
     
     // Every 40 frames the piece automatically moves down a line
-    if (timer++ > 40) {
+    if (timer++ > fallSpeeds[level]) {
         timer = 0;
         line++;
 
@@ -126,6 +136,7 @@ void renderFrame() {
     displayGrid();
 
     printf("                   Score: %06d\n", score);
+    printf("                   Level: %d\n", level);
 
     fflush(stdout);
 }
@@ -194,14 +205,14 @@ char handleInput() {
                             dropCount++;
                         }
                         line--;
-                        timer += 41;
-                        score += dropCount;
+                        timer += fallSpeeds[level] + 1;
+                        if (dropCount > 1) score += dropCount;
                         break;
                     case 'B': // Down
                         // Soft dropping
                         // Setting the timer to the limit is a bit janky but ensures
                         // the floor hit check is done immediately while holding down
-                        timer += 41;    
+                        timer += fallSpeeds[level] + 1;    
                         downPressed = 1;
                         break;
                     case 'C': // Right
@@ -313,17 +324,18 @@ void checkLines() {
             if (j == 24) {
                 clearLine(i);
                 linesFound++;
+                clearedLines++;
                 foundLinesArr[linesFound] = i;
             }
         }
     }
 
-    // Score changes based on line count, based on the BPS NES version
+    // Score changes based on line count and level, like the BPS NES version
     switch (linesFound) {
-        case 1: score += 40;   break;
-        case 2: score += 100;  break;
-        case 3: score += 300;  break;
-        case 4: score += 1200; break;
+        case 1: score += 40 * (level + 1);   break;
+        case 2: score += 100 * (level + 1);  break;
+        case 3: score += 300 * (level + 1);  break;
+        case 4: score += 1200 * (level + 1); break;
     }
 
     if (linesFound) {
@@ -379,7 +391,7 @@ void moveLinesDown(int linesFound) {
 
 /*
  * Terminal display functions
-*/
+ */
 
 // Changes the terminal mode to raw so it reads inputs directly
 void raw_mode() {
