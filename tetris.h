@@ -153,7 +153,6 @@ char I_piece[4][4][8] = {   {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
 
 char (*pieceTable[])[4][8] = {T_piece, J_piece, Z_piece, O_piece, S_piece, L_piece, I_piece};
 
-
 /*
  * Function declarations 
  */
@@ -168,12 +167,10 @@ void displayPiece();
 void clearPiece();
 char checkBoundaries();
 void checkLines();
-char checkLoss();
 void clearLine(int line);
 void moveLinesDown(int linesFound);
 
 // Terminal display functions
-//void clearScreen();
 void raw_mode();
 void reg_mode();
 

@@ -96,8 +96,8 @@ void gameLogic() {
         line = 10; column = 16; rot = 0;
         pieceID = ((char)(randomFloat() * 7));
         hitFloor = 0; dropCount = 0;
-        // Check if the tiles directly under the piece are filled, if they are, it's game over
-        if (checkLoss() != 0) {
+        // Check if there are tiles where the piece spawns, if there are, it's game over
+        if (checkBoundaries() != 0) {
             running = 0;
             return;
         }
@@ -343,22 +343,6 @@ void checkLines() {
     }
 }
 
-char checkLoss() {
-    int centerLine = 2, centerColumn = 4;
-    
-    for (int i = -2; i < 2; i++) {
-        for (int j = -4; j < 4; j += 2) {
-            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+j] == '[') {
-                if (Grid[line+(i+1)][column+j] != ' ') {
-                    return 1;
-                }
-            }
-        }
-    }
-
-    return 0;    
-}
-
 void clearLine(int line) {
     for (int j = 6; j < 26; j += 2) {
         for (int j = 6; j < 26; j += 2) {
@@ -370,7 +354,7 @@ void clearLine(int line) {
 
 void moveLinesDown(int linesFound) {
     for (int i = 0; i < linesFound; i++) {
-        for (int i = foundLinesArr[linesFound]; i > 10; i--) {
+        for (int i = foundLinesArr[linesFound]; i >= 10; i--) {
             for (int j = 6; j < 26; j += 2) {
                 // If a non blank tile is found...
                 if (Grid[i][j] != ' ') {
