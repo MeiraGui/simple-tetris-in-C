@@ -11,10 +11,12 @@
  */
 
 char running = 1;            // Boolean flag for main loop excecution
+char paused = 0;             // Boolean flag for pausing the game
 struct termios orig_termios; // Original terminal settings to restore
 
 char line, column;           // Used for the positioning of the pieces
 char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
+char nextID = 0;             // ID used to display the upcoming piece
 
 char clearedLines = 0;       // Counter for every line cleared, for every 10 lines, a level increases
 char level = 0;              // Level the game is on, determines how fast a piece drops
@@ -61,11 +63,25 @@ int main() {
 
     line = 10; column = 16; // Initial position of the piece
     pieceID = ((char)(randomFloat() * 7));
+    nextID = ((char)(randomFloat() * 7));
 
     while (running) {
         clock_gettime(CLOCK_MONOTONIC, &start_time);
     
-        gameLogic();
+        if (!paused) {
+            printf("                           ");
+            gameLogic();
+        } else {
+            char input = getchar();
+            printf("Paused! (press 'Q' to exit)\n");
+            // Pressing enter unpauses the game
+            if (input == '\n') {
+                paused = 0;
+            } else if (input == 'q' || input == 'Q') {
+                running = 0;
+                break;
+            }
+        }
 
         renderFrame();
 
@@ -94,7 +110,8 @@ void gameLogic() {
         
         // If the 'hitFloor' flag is set, a new piece is created at the top of the screen
         line = 10; column = 16; rot = 0;
-        pieceID = ((char)(randomFloat() * 7));
+        pieceID = nextID;
+        nextID = ((char)(randomFloat() * 7));
         hitFloor = 0; dropCount = 0;
         // Check if there are tiles where the piece spawns, if there are, it's game over
         if (checkBoundaries() != 0) {
@@ -106,11 +123,12 @@ void gameLogic() {
         clearPiece();
     }
 
+    // Every 10 lines the level increases
     level = clearedLines / 10;
 
     running = handleInput(); // Input handling
     
-    // Every 40 frames the piece automatically moves down a line
+    // Every couple of frames the piece automatically moves down a line
     if (timer++ > fallSpeeds[level]) {
         timer = 0;
         line++;
@@ -127,16 +145,13 @@ void gameLogic() {
 void renderFrame() {
     // H ANSII comand moves the cursor to the top left of the screen
     printf("\e[H");
-    //printf("                   Score: %06d\n", score); 
 
     displayPiece();
+    displayNextPiece();
     // Used to show the center of the piece
     //Grid[line][column] = '{';
     //Grid[line][column+1] = '}';
     displayGrid();
-
-    printf("                   Score: %06d\n", score);
-    printf("                   Level: %d\n", level);
 
     fflush(stdout);
 }
@@ -167,6 +182,21 @@ void displayGrid() {
         printf("\n");
     }
 #else
+    printf("   Next\n");
+    printf("!========!\n");
+    for (int i = 4; i < 6; i++) {
+        printf("!");
+        for (int j = 4; j < 12; j += 2) {
+            printf("%c%c", Grid[i][j],Grid[i][j+1]);
+        }
+        printf("!");
+        if (i == 4) printf(" Score: %06d", score);
+        if (i == 5) printf(" Level: %d", level);
+        printf("\n");
+    }
+    printf("!========!\n");
+    printf("------------------------\n");
+
     for (int i = 10; i < 30; i++) {
         printf("<!");
         for (int j = 6; j < 26; j += 2) {
@@ -183,9 +213,10 @@ char handleInput() {
     char input, downPressed = 0;
     
     while (read(STDIN_FILENO, &input, 1) > 0) {  
-        // Enter press check
+        // Enter press check to pause the game
         if (input == '\n') {
-            return 0;
+            paused = 1;
+            return 1;
         }
 
         if (input == 27) {
@@ -270,7 +301,7 @@ char handleInput() {
 }
 
 void displayPiece() {
-    int centerLine = 2, centerColumn = 4;
+    char centerLine = 2, centerColumn = 4;
     
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
@@ -282,8 +313,19 @@ void displayPiece() {
     }
 }
 
+void displayNextPiece() {
+    char centerLine = 2, centerColumn = 4;
+    
+    for (int i = -2; i < 2; i++) {
+        for (int j = -4; j < 4; j += 2) {
+            Grid[4+i][8+j] = pieceTable[nextID][0][centerLine+i][centerColumn+j];
+            Grid[4+i][8+(j+1)] = pieceTable[nextID][0][centerLine+i][centerColumn+(j+1)];
+        }
+    }
+}
+
 void clearPiece() {
-    int centerLine = 2, centerColumn = 4;
+    char centerLine = 2, centerColumn = 4;
     
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
@@ -296,7 +338,7 @@ void clearPiece() {
 }
 
 char checkBoundaries() {
-    int centerLine = 2, centerColumn = 4;
+    char centerLine = 2, centerColumn = 4;
     
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
@@ -376,7 +418,6 @@ void moveLinesDown(int linesFound) {
 /*
  * Terminal display functions
  */
-
 // Changes the terminal mode to raw so it reads inputs directly
 void raw_mode() {
     // Current terminal mode is saved and copied to the new mode struct

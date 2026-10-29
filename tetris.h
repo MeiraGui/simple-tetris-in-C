@@ -164,6 +164,7 @@ void initializeGrid();
 void displayGrid();
 char handleInput();
 void displayPiece();
+void displayNextPiece();
 void clearPiece();
 char checkBoundaries();
 void checkLines();
