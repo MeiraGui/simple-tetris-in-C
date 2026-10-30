@@ -162,7 +162,7 @@ void gameLogic();
 void renderFrame();
 void initializeGrid();
 void displayGrid();
-char handleInput();
+void handleInput();
 void displayPiece();
 void displayNextPiece();
 void clearPiece();

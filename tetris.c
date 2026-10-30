@@ -126,7 +126,7 @@ void gameLogic() {
     // Every 10 lines the level increases
     level = clearedLines / 10;
 
-    running = handleInput(); // Input handling
+    handleInput(); // Input handling
     
     // Every couple of frames the piece automatically moves down a line
     if (timer++ > fallSpeeds[level]) {
@@ -172,6 +172,7 @@ void initializeGrid() {
     }
 }
 
+// Visuals are based on the original version of Tetris
 void displayGrid() {
 #if 0
     // shows whole grid including OOB
@@ -209,14 +210,14 @@ void displayGrid() {
 #endif
 }
 
-char handleInput() {   
+void handleInput() {   
     char input, downPressed = 0;
     
     while (read(STDIN_FILENO, &input, 1) > 0) {  
         // Enter press check to pause the game
         if (input == '\n') {
             paused = 1;
-            return 1;
+            return;
         }
 
         if (input == 27) {
@@ -297,12 +298,13 @@ char handleInput() {
         dropCount = 0;
     }
     
-    return 1;
+    return;
 }
 
-void displayPiece() {
-    char centerLine = 2, centerColumn = 4;
-    
+#define centerLine 2
+#define centerColumn 4
+
+void displayPiece() {    
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+j] == '[') {
@@ -313,9 +315,7 @@ void displayPiece() {
     }
 }
 
-void displayNextPiece() {
-    char centerLine = 2, centerColumn = 4;
-    
+void displayNextPiece() {   
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
             Grid[4+i][8+j] = pieceTable[nextID][0][centerLine+i][centerColumn+j];
@@ -324,9 +324,7 @@ void displayNextPiece() {
     }
 }
 
-void clearPiece() {
-    char centerLine = 2, centerColumn = 4;
-    
+void clearPiece() {  
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+j] == '[') {
@@ -337,9 +335,7 @@ void clearPiece() {
     }
 }
 
-char checkBoundaries() {
-    char centerLine = 2, centerColumn = 4;
-    
+char checkBoundaries() { 
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+j] == '[') {
@@ -358,21 +354,27 @@ char foundLinesArr[4] = {};
 void checkLines() {
     char linesFound = 0;
     
-    for (int i = 10; i < 30; i++) {
+    for (int i = -2; i < 2; i++) {
+        // Check to not remove the OOB tiles under the play area
+        if (line+i > 29) {
+            break;
+        }
         for (int j = 6; j < 26; j += 2) {
-            if (Grid[i][j] == ' ') {
+            
+            if (Grid[line+i][j] == ' ') {
                 break;
             }
             if (j == 24) {
-                clearLine(i);
+                clearLine(line+i);
                 linesFound++;
                 clearedLines++;
-                foundLinesArr[linesFound] = i;
+                // Line - 1 because the line that was cleared will never be moved down, since it has no tiles
+                foundLinesArr[linesFound] = line+i - 1;
             }
         }
     }
 
-    // Score changes based on line count and level, like the BPS NES version
+    // Score changes based on line count and level, like the NES version
     switch (linesFound) {
         case 1: score += 40 * (level + 1);   break;
         case 2: score += 100 * (level + 1);  break;
@@ -386,17 +388,16 @@ void checkLines() {
 }
 
 void clearLine(int line) {
-    for (int j = 6; j < 26; j += 2) {
-        for (int j = 6; j < 26; j += 2) {
-            Grid[line][j] = ' ';
-            Grid[line][j+1] = '.';
-        }
+    // 'i' is the column in this case
+    for (int i = 6; i < 26; i += 2) {
+        Grid[line][i] = ' ';
+        Grid[line][i+1] = '.';
     }
 }
 
 void moveLinesDown(int linesFound) {
     for (int i = 0; i < linesFound; i++) {
-        for (int i = foundLinesArr[linesFound]; i >= 10; i--) {
+        for (int i = foundLinesArr[linesFound]; i >= 8; i--) {
             for (int j = 6; j < 26; j += 2) {
                 // If a non blank tile is found...
                 if (Grid[i][j] != ' ') {
