@@ -56,6 +56,24 @@ int main() {
     const int FRAME_DELAY = 1000000 / FPS; // microseconds per frame
     struct timespec start_time, end_time;
     
+    // Title screen
+    while (1) {
+        displayTitle();
+        char input = getchar();
+
+        if (input == '\n') {
+            break;
+        }
+
+        usleep(166666);
+    }
+
+    // Clears the title screen
+    printf("\e[H                           ");
+    printf("\n                           \e[H");
+    fflush(stdout);
+
+    // Main loop initialization
     initializeGrid();
     displayGrid();
 
@@ -65,6 +83,7 @@ int main() {
     pieceID = ((char)(randomFloat() * 7));
     nextID = ((char)(randomFloat() * 7));
 
+    // Main loop
     while (running) {
         clock_gettime(CLOCK_MONOTONIC, &start_time);
     
@@ -104,6 +123,37 @@ int main() {
 /*
  * Tetris functions
  */
+char offset = 0; // Switches the colors of each letter
+void displayTitle() {
+    const char color[] = {'R', 'O', 'Y', 'G', 'C', 'B', 'M', 'D'};
+    const char letter[] = {'T', 'e', 't', 'r', 'i', 's', '!', '\0'};
+    
+    // H ANSII comand moves the cursor to the top left of the screen
+    printf("\e[H");
+
+    printf("        ");
+    for (int i = 0; i < 7; i++) {
+        switch(color[(i+offset)&7]) {
+            case 'R': printf("\e[38;5;160m"); break; // Red
+            case 'G': printf("\e[38;5;34m");  break; // Green
+            case 'Y': printf("\e[38;5;184m"); break; // Yellow
+            case 'B': printf("\e[38;5;27m");  break; // Blue
+            case 'M': printf("\e[38;5;129m"); break; // Magenta
+            case 'C': printf("\e[38;5;80m");  break; // Cyan
+            case 'O': printf("\e[38;5;172m"); break; // Orange
+            default:  printf("\e[39m");       break; // Default color
+        }
+        printf("%c", letter[i]);
+    }
+
+    printf("\e[39m"); // Default color
+    printf("\n  Press \e[38;5;227mENTER\e[39m to start.");
+
+    offset = (offset - 1) & 7;
+
+    fflush(stdout);
+}
+
 void gameLogic() {
     if (hitFloor) {
         checkLines();

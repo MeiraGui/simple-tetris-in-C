@@ -158,6 +158,7 @@ const char (*pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_piece,
  */
 
 // Tetris functions
+void displayTitle();
 void gameLogic();
 void renderFrame();
 void initializeGrid();
