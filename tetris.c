@@ -73,7 +73,7 @@ int main() {
             gameLogic();
         } else {
             char input = getchar();
-            printf("Paused! (press 'Q' to exit)\n");
+            printf("Paused! (press \e[38;5;227m'Q'\e[39m to exit)\n");
             // Pressing enter unpauses the game
             if (input == '\n') {
                 paused = 0;
@@ -95,7 +95,7 @@ int main() {
         }
     }
 
-    printf("       Game Over!\n");
+    printf("      \e[38;5;160m Game Over!\n");
 
     reg_mode();
     return 0;
@@ -183,30 +183,32 @@ void displayGrid() {
         printf("\n");
     }
 #else
-    printf("   Next\n");
+    printf("   \e[38;5;227mNext\e[39m\n");
     printf("!========!\n");
     for (int i = 4; i < 6; i++) {
         printf("!");
         for (int j = 4; j < 12; j += 2) {
             if (Grid[i][j] != ' ') { 
-                printf("%c%c", '[',']');
+                pieceColor(Grid[i][j]);
             } else {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
         }
+        printf("\e[39m"); // Default color
         printf("!");
-        if (i == 4) printf(" Score: %06d", score);
-        if (i == 5) printf(" Level: %d", level);
+        if (i == 4) printf(" Score: \e[38;5;227m%06d\e[39m", score);
+        if (i == 5) printf(" Level: \e[38;5;227m%d\e[39m", level);
         printf("\n");
     }
     printf("!========!\n");
     printf("------------------------\n");
 
     for (int i = 10; i < 30; i++) {
+        printf("\e[38;5;68m"); // Bright blue BG
         printf("<!");
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
-                printf("%c%c", '[',']');
+                pieceColor(Grid[i][j]);
             } else {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
@@ -215,7 +217,23 @@ void displayGrid() {
     }
     printf("<!====================!>\n");
     printf("  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n");
+    printf("\e[39m"); // Default color
 #endif
+}
+
+void pieceColor(char color) {
+    switch(color) {
+        case 'R': printf("\e[38;5;160m"); break; // Red
+        case 'G': printf("\e[38;5;34m");  break; // Green
+        case 'Y': printf("\e[38;5;184m"); break; // Yellow
+        case 'B': printf("\e[38;5;27m");  break; // Blue
+        case 'M': printf("\e[38;5;129m"); break; // Magenta
+        case 'C': printf("\e[38;5;80m");  break; // Cyan
+        case 'O': printf("\e[38;5;172m"); break; // Orange
+        default:  printf("\e[39m");       break; // Default color
+    }
+    printf("%c%c", '[',']');
+    printf("\e[38;5;68m"); // Bright blue for the non piece tiles like the original IBM PC version
 }
 
 void handleInput() {   
@@ -228,11 +246,11 @@ void handleInput() {
             return;
         }
 
-        if (input == 27) {
+        // Arrow key presses are 'ESC' (ASCII 27), '[' then 'A', 'B', 'C' or 'D'.
+        // So to check for arrow keys, we check for those 3 inputs in sequence
+        if (input == '\e') {
             input = getchar();
 
-            // Arrow key presses are 'ESC' (ASCII 27), '[' then 'A', 'B', 'C' or 'D'.
-            // So to check for arrow keys, we check for those 3 inputs in sequence
             if (input == '[') {
                 input = getchar();
 
@@ -315,7 +333,7 @@ void handleInput() {
 void displayPiece() {    
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
-            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] == '[') {
+            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
                 Grid[line+i][column+j] = pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
                 Grid[line+i][column+(j+1)] = pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
             }
@@ -335,7 +353,7 @@ void displayNextPiece() {
 void clearPiece() {  
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
-            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] == '[') {
+            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
                 Grid[line+i][column+j] = ' ';
                 Grid[line+i][column+(j+1)] = '.';
             }
@@ -346,7 +364,7 @@ void clearPiece() {
 char checkBoundaries() { 
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
-            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] == '[') {
+            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
                 if (Grid[line+i][column+j] != ' ') {
                     return 1;
                 }
