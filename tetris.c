@@ -188,7 +188,11 @@ void displayGrid() {
     for (int i = 4; i < 6; i++) {
         printf("!");
         for (int j = 4; j < 12; j += 2) {
-            printf("%c%c", Grid[i][j],Grid[i][j+1]);
+            if (Grid[i][j] != ' ') { 
+                printf("%c%c", '[',']');
+            } else {
+                printf("%c%c", Grid[i][j],Grid[i][j+1]);
+            }
         }
         printf("!");
         if (i == 4) printf(" Score: %06d", score);
@@ -201,7 +205,11 @@ void displayGrid() {
     for (int i = 10; i < 30; i++) {
         printf("<!");
         for (int j = 6; j < 26; j += 2) {
-            printf("%c%c", Grid[i][j],Grid[i][j+1]);
+            if (Grid[i][j] != ' ') { 
+                printf("%c%c", '[',']');
+            } else {
+                printf("%c%c", Grid[i][j],Grid[i][j+1]);
+            }
         }
         printf("!>\n");
     }
@@ -302,14 +310,14 @@ void handleInput() {
 }
 
 #define centerLine 2
-#define centerColumn 4
+#define centerColumn 2
 
 void displayPiece() {    
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
-            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+j] == '[') {
-                Grid[line+i][column+j] = pieceTable[pieceID][rot][centerLine+i][centerColumn+j];
-                Grid[line+i][column+(j+1)] = pieceTable[pieceID][rot][centerLine+i][centerColumn+(j+1)];
+            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] == '[') {
+                Grid[line+i][column+j] = pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
+                Grid[line+i][column+(j+1)] = pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
             }
         }
     }
@@ -318,8 +326,8 @@ void displayPiece() {
 void displayNextPiece() {   
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
-            Grid[4+i][8+j] = pieceTable[nextID][0][centerLine+i][centerColumn+j];
-            Grid[4+i][8+(j+1)] = pieceTable[nextID][0][centerLine+i][centerColumn+(j+1)];
+            Grid[4+i][8+j] = pieceTable[nextID][0][centerLine+i][centerColumn+(j/2)];
+            Grid[4+i][8+(j+1)] = pieceTable[nextID][0][centerLine+i][centerColumn+(j/2)];
         }
     }
 }
@@ -327,7 +335,7 @@ void displayNextPiece() {
 void clearPiece() {  
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
-            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+j] == '[') {
+            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] == '[') {
                 Grid[line+i][column+j] = ' ';
                 Grid[line+i][column+(j+1)] = '.';
             }
@@ -338,7 +346,7 @@ void clearPiece() {
 char checkBoundaries() { 
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
-            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+j] == '[') {
+            if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] == '[') {
                 if (Grid[line+i][column+j] != ' ') {
                     return 1;
                 }
