@@ -222,7 +222,6 @@ void initializeGrid() {
     }
 }
 
-// Visuals are based on the original version of Tetris
 void displayGrid() {
 #if 0
     // shows whole grid including OOB
@@ -234,9 +233,9 @@ void displayGrid() {
     }
 #else
     printf("   \e[38;5;227mNext\e[39m\n");
-    printf("!========!\n");
+    printf(NEXT_TOP);
     for (int i = 4; i < 6; i++) {
-        printf("!");
+        printf(NEXT_MID);
         for (int j = 4; j < 12; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -245,17 +244,17 @@ void displayGrid() {
             }
         }
         printf("\e[39m"); // Default color
-        printf("!");
+        printf(NEXT_MID);
         if (i == 4) printf(" Score: \e[38;5;227m%06d\e[39m", score);
         if (i == 5) printf(" Level: \e[38;5;227m%d\e[39m", level);
         printf("\n");
     }
-    printf("!========!\n");
-    printf("------------------------\n");
+    printf(NEXT_BOTTOM);
+    printf(DIV_LINE);
 
     for (int i = 10; i < 30; i++) {
         printf("\e[38;5;68m"); // Bright blue BG
-        printf("<!");
+        printf(MAIN_LEFT);
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -263,10 +262,9 @@ void displayGrid() {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
         }
-        printf("!>\n");
+        printf(MAIN_RIGHT);
     }
-    printf("<!====================!>\n");
-    printf("  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n");
+    printf(MAIN_BOTTOM);
     printf("\e[39m"); // Default color
 #endif
 }
@@ -282,7 +280,11 @@ void pieceColor(char color) {
         case 'O': printf("\e[38;5;172m"); break; // Orange
         default:  printf("\e[39m");       break; // Default color
     }
-    printf("%c%c", '[',']');
+#if BLOCK_STYLE
+    printf("██");
+#else
+    printf("[]");
+#endif
     printf("\e[38;5;68m"); // Bright blue for the non piece tiles like the original IBM PC version
 }
 

@@ -156,7 +156,6 @@ const char (*pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_piece,
 /*
  * Function declarations 
  */
-
 // Tetris functions
 void displayTitle();
 void gameLogic();
@@ -176,5 +175,31 @@ void moveLinesDown(int linesFound);
 // Terminal display functions
 void raw_mode();
 void reg_mode();
+
+/*
+ * Visual flags
+ */
+// Elektronika 60 style visuals are based on the original version of Tetris
+#define AREA_STYLE  1  // 0 for Elektronika 60 style, 1 for cleaner
+#define BLOCK_STYLE 1  // 0 for Elektronika 60 style bracket blocks, 1 for solid blocks
+
+#if AREA_STYLE
+    #define NEXT_TOP    "┌────────┐\n"
+    #define NEXT_MID    "│"
+    #define NEXT_BOTTOM "└────────┘\n"
+    #define DIV_LINE    "──────────────────────\n"
+    #define MAIN_LEFT   "║"
+    #define MAIN_RIGHT  "║\n"
+    #define MAIN_BOTTOM "╚════════════════════╝\n"
+#else
+    #define NEXT_TOP    "!========!\n"
+    #define NEXT_MID    "!"
+    #define NEXT_BOTTOM "!========!\n"
+    #define DIV_LINE    "------------------------\n"
+    #define MAIN_LEFT   "<!"
+    #define MAIN_RIGHT  "!>\n"
+    #define MAIN_BOTTOM "<!====================!>\n  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n"
+#endif
+
 
 #endif
