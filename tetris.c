@@ -18,8 +18,8 @@ char line, column;           // Used for the positioning of the pieces
 char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
 char nextID = 0;             // ID used to display the upcoming piece
 
-char clearedLines = 0;       // Counter for every line cleared, for every 10 lines, a level increases
-char level = 0;              // Level the game is on, determines how fast a piece drops
+unsigned char clearedLines = 0; // Counter for every line cleared, for every 10 lines, a level increases
+unsigned char level = 0;        // Level the game is on, determines how fast a piece drops
 
 char timer = 0;              // Timer for dropping the piece over time
 char hitFloor = 0;           // Boolean flag to check if the piece has hit the floor
@@ -65,19 +65,21 @@ int main() {
             break;
         }
 
-        usleep(166666);
+        usleep(1000000 / 6);
     }
 
+    idum = time(NULL); // Sets the seed to the current time
+
+resetPoint:
     // Clears the title screen
-    printf("\e[H                           ");
-    printf("\n                           \e[H");
+    printf("\e[H\e[J");
     fflush(stdout);
+
+    score = 0; rot = 0; level = 0; clearedLines = 0;
 
     // Main loop initialization
     initializeGrid();
     displayGrid();
-
-    idum = time(NULL); // Sets the seed to the current time
 
     line = 10; column = 16; // Initial position of the piece
     pieceID = ((char)(randomFloat() * 7));
@@ -88,21 +90,25 @@ int main() {
         clock_gettime(CLOCK_MONOTONIC, &start_time);
     
         if (!paused) {
-            printf("                           ");
             gameLogic();
         } else {
             char input = getchar();
-            printf("Paused! (press \e[38;5;227m'Q'\e[39m to exit)\n");
+            printf("        Paused!\n");
+            printf("(\e[38;5;227m'R'\e[39m to reset or \e[38;5;227m'Q'\e[39m to exit)\n");
             // Pressing enter unpauses the game
             if (input == '\n') {
                 paused = 0;
+                printf("\e[1J"); // Clears the pause text when the game is unpaused
+            } else if (input == 'r' || input == 'R') {
+                paused = 0;
+                goto resetPoint;
             } else if (input == 'q' || input == 'Q') {
-                running = 0;
+                running = 2; // Set to 2 to not go into the game over code
                 break;
             }
         }
 
-        renderFrame();
+        renderFrame(1);
 
         // Framerate regulation
         clock_gettime(CLOCK_MONOTONIC, &end_time);
@@ -114,7 +120,22 @@ int main() {
         }
     }
 
-    printf("      \e[38;5;160m Game Over!\n");
+    // Game Over
+    if (running != 2) {
+        printf("      \e[38;5;160m Game Over!\e[39m\n");
+        printf("(\e[38;5;227m'R'\e[39m to reset or \e[38;5;227m'Q'\e[39m to exit)\n");
+
+        while(1) {
+            char input = getchar();
+            
+            if (input == 'r' || input == 'R') {
+                running = 1;
+                goto resetPoint;
+            } else if (input == 'q' || input == 'Q') {
+                break;
+            }
+        }
+    }
 
     reg_mode();
     return 0;
@@ -192,11 +213,12 @@ void gameLogic() {
     }
 }
 
-void renderFrame() {
+void renderFrame(char flag) {
     // H ANSII comand moves the cursor to the top left of the screen
     printf("\e[H");
 
-    displayPiece();
+    // the flag is to not display the piece after it drops, to not have issues with clearing lines
+    if(flag) displayPiece();
     displayNextPiece();
     // Used to show the center of the piece
     //Grid[line][column] = '{';
@@ -245,7 +267,7 @@ void displayGrid() {
         }
         printf("\e[39m"); // Default color
         printf(NEXT_MID);
-        if (i == 4) printf(" Score: \e[38;5;227m%06d\e[39m", score);
+        if (i == 4) printf(" Score: \e[38;5;227m%d\e[39m", score);
         if (i == 5) printf(" Level: \e[38;5;227m%d\e[39m", level);
         printf("\n");
     }
@@ -459,6 +481,12 @@ void checkLines() {
         case 3: score += 300 * (level + 1);  break;
         case 4: score += 1200 * (level + 1); break;
     }
+
+    // Pauses briefly to showcase the cleared lines before moving down and to give slight breathing room
+    renderFrame(0);
+    usleep(1000000 / 5);
+    // The input buffer is cleared to avoid issues with holding down during this pause
+    tcflush(STDIN_FILENO, TCIFLUSH);
 
     if (linesFound) {
         moveLinesDown(linesFound);
