@@ -172,9 +172,10 @@ void checkLines();
 void clearLine(int line);
 void moveLinesDown(int linesFound);
 
-// Terminal display functions
-void raw_mode();
-void reg_mode();
+// Terminal functions
+void initTerminal();
+void restoreTerminal();
+unsigned char getKeys();
 
 /*
  * Visual flags

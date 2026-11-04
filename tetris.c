@@ -2,9 +2,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <termios.h>
 #include <time.h>
 #include "tetris.h"
+
+#ifdef _WIN32
+    #include <windows.h>
+    #include <conio.h>
+#else
+    #include <termios.h>
+    struct termios orig_termios; // Original terminal settings to restore
+#endif
 
 /*
  * Global variables
@@ -12,7 +19,6 @@
 
 char running = 1;            // Boolean flag for main loop excecution
 char paused = 0;             // Boolean flag for pausing the game
-struct termios orig_termios; // Original terminal settings to restore
 
 char line, column;           // Used for the positioning of the pieces
 char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
@@ -49,19 +55,25 @@ float randomFloat() {
 }
 
 int main() {
-    raw_mode();
+    initTerminal();
 
     // Framerate variables
+#ifdef _WIN32
+    // Windows timing runs slower, so we double the framerate to get close to Linux's speed
+    const int FPS = 60;
+#else
     const int FPS = 30;
+#endif
     const int FRAME_DELAY = 1000000 / FPS; // microseconds per frame
     struct timespec start_time, end_time;
     
     // Title screen
     while (1) {
         displayTitle();
-        char input = getchar();
+        unsigned char input = getKeys();
 
-        if (input == '\n') {
+        // Enter press check
+        if (input == 250) {
             break;
         }
 
@@ -92,11 +104,11 @@ resetPoint:
         if (!paused) {
             gameLogic();
         } else {
-            char input = getchar();
+            unsigned char input = getKeys();
             printf("        Paused!\n");
             printf("(\e[38;5;227m'R'\e[39m to reset or \e[38;5;227m'Q'\e[39m to exit)\n");
             // Pressing enter unpauses the game
-            if (input == '\n') {
+            if (input == 250) {
                 paused = 0;
                 printf("\e[1J"); // Clears the pause text when the game is unpaused
             } else if (input == 'r' || input == 'R') {
@@ -126,7 +138,7 @@ resetPoint:
         printf("(\e[38;5;227m'R'\e[39m to reset or \e[38;5;227m'Q'\e[39m to exit)\n");
 
         while(1) {
-            char input = getchar();
+            unsigned char input = getKeys();
             
             if (input == 'r' || input == 'R') {
                 running = 1;
@@ -137,7 +149,7 @@ resetPoint:
         }
     }
 
-    reg_mode();
+    restoreTerminal();
     return 0;
 }
 
@@ -218,7 +230,7 @@ void renderFrame(char flag) {
     printf("\e[H");
 
     // the flag is to not display the piece after it drops, to not have issues with clearing lines
-    if(flag) displayPiece();
+    if (flag) displayPiece();
     displayNextPiece();
     // Used to show the center of the piece
     //Grid[line][column] = '{';
@@ -311,84 +323,64 @@ void pieceColor(char color) {
 }
 
 void handleInput() {   
-    char input, downPressed = 0;
+    char downPressed = 0;
     
-    while (read(STDIN_FILENO, &input, 1) > 0) {  
-        // Enter press check to pause the game
-        if (input == '\n') {
+    switch(getKeys()) {
+        case 250: // Enter press
             paused = 1;
             return;
-        }
-
-        // Arrow key presses are 'ESC' (ASCII 27), '[' then 'A', 'B', 'C' or 'D'.
-        // So to check for arrow keys, we check for those 3 inputs in sequence
-        if (input == '\e') {
-            input = getchar();
-
-            if (input == '[') {
-                input = getchar();
-
-                switch (input) {
-                    case 'A': // Up
-                        // Hard dropping
-                        dropCount = 0;
-                        while (checkBoundaries() == 0) {
-                            line++;
-                            dropCount++;
-                        }
-                        line--;
-                        timer += fallSpeeds[level] + 1;
-                        if (dropCount > 1) score += dropCount;
-                        break;
-                    case 'B': // Down
-                        // Soft dropping
-                        // Setting the timer to the limit is a bit janky but ensures
-                        // the floor hit check is done immediately while holding down
-                        timer += fallSpeeds[level] + 1;    
-                        downPressed = 1;
-                        break;
-                    case 'C': // Right
-                        column += 2;
-                        if (checkBoundaries() != 0) {
-                            column -= 2;
-                        }
-                        break;
-                    case 'D': // Left
-                        column -= 2;
-                        if (checkBoundaries() != 0) {
-                            column += 2;
-                        }
-                        break;
-                }
+        case 251: // Up
+            // Hard dropping
+            dropCount = 0;
+            while (checkBoundaries() == 0) {
+                line++;
+                dropCount++;
             }
-        } else {
-            switch (input) {
-                case 'z':
-                case 'Z':
-                    rot++;
-                    rot &= 3;
-                    if (checkBoundaries() != 0) {
-                            rot--;
-                    }
-                    break;
-                case 'x':
-                case 'X':
+            line--;
+            // Setting the timer to the limit is a bit janky but ensures
+            // the floor hit check is done immediately while hard dropping
+            timer += fallSpeeds[level] + 1;
+            if (dropCount > 1) score += dropCount;
+            break;
+        case 252: // Down
+            // Soft dropping
+            timer += fallSpeeds[level] + 1; // Same thing as hard dropping 
+            downPressed = 1;
+            break;
+        case 253: // Right
+            column += 2;
+            if (checkBoundaries() != 0) {
+                column -= 2;
+            }
+            break;
+        case 254: // Left
+            column -= 2;
+            if (checkBoundaries() != 0) {
+                column += 2;
+            }
+            break;
+        case 'z': case 'Z':
+            rot++;
+            rot &= 3;
+            if (checkBoundaries() != 0) {
                     rot--;
-                    rot &= 3;
-                    if (checkBoundaries() != 0) {
-                           rot++;
-                    }
-                    break;
             }
-        }
-
-        // ANDed to 3 to make sure the rotations don't get out of bounds
-        rot &= 3;
-
-        // ANDed to 0x1F to make sure the pieces wrap around if they get out of bounds
-        line &= 0x1F;
-        column &= 0x1F;
+            break;
+        case 'x': case 'X':
+            rot--;
+            rot &= 3;
+            if (checkBoundaries() != 0) {
+                    rot++;
+            }
+            break;
     }
+
+    // ANDed to 3 to make sure the rotations don't get out of bounds
+    rot &= 3;
+
+    // ANDed to 0x1F to make sure the pieces wrap around if they get out of bounds
+    line &= 0x1F;
+    column &= 0x1F;
 
     if (downPressed == 1) {
         //printf("down pressed!\n");
@@ -398,6 +390,11 @@ void handleInput() {
         dropCount = 0;
     }
     
+#ifndef _WIN32
+    // There can be some issues with holding down on linux so the input buffer is cleared
+    tcflush(STDIN_FILENO, TCIFLUSH);
+#endif
+
     return;
 }
 
@@ -486,7 +483,11 @@ void checkLines() {
     renderFrame(0);
     usleep(1000000 / 5);
     // The input buffer is cleared to avoid issues with holding down during this pause
+#ifdef _WIN32
+    FlushConsoleInputBuffer(GetStdHandle(STD_INPUT_HANDLE));
+#else
     tcflush(STDIN_FILENO, TCIFLUSH);
+#endif
 
     if (linesFound) {
         moveLinesDown(linesFound);
@@ -523,10 +524,83 @@ void moveLinesDown(int linesFound) {
 }
 
 /*
- * Terminal display functions
+ * Terminal functions (changes based on OS)
  */
+
+// Windows
+#ifdef _WIN32
+// Enables ANSI support for the older terminal (Windows console) to work
+void initTerminal() {
+    // Gets the output handle
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut == INVALID_HANDLE_VALUE) {
+        printf("Error getting output handle!\n");
+        exit(1);
+    }
+
+    // Gets the current mode of the console
+    DWORD dwMode = 0;
+    if (!GetConsoleMode(hOut, &dwMode)) {
+        printf("Error getting console mode!\n");
+        exit(1);
+    }
+
+    // Enables the virtual terminal prcessing flag for ANSI support
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    if (!SetConsoleMode(hOut, dwMode)) {
+        printf("Error activating ANSI support!\n");
+        exit(1);
+    }
+
+    // Code page is changed to support the "extended ASCII" characters
+    if (!SetConsoleCP(65001) || !SetConsoleOutputCP(65001)) {
+        printf("Error setting code page!");
+        exit(1);
+    }
+
+    printf("\e[?25l"); // Disables flashing cursor for cleaner display
+    printf("\e[2J\e[H"); // Clears the screen once at the start
+}
+
+// Just enables the cursor, as there is no need to set a "raw mode" on Windows
+void restoreTerminal() {
+    printf("\e[?25h"); // Reactivates cursor on exit
+}
+
+// A function to normalize the keys is needed since both OSes handle input differently 
+unsigned char getKeys() {
+    unsigned char input;
+
+    if (_kbhit()) {
+        input = _getch();
+        
+        // Enter press check
+        if (input == 13) {
+            return 250;
+        }
+
+        // Arrow press check
+        if (input == 0 || input == 224) {
+            input = _getch();
+
+            switch (input) {
+                case 72: return 251; // Up
+                case 80: return 252; // Down
+                case 77: return 253; // Right
+                case 75: return 254; // Left
+            }
+        }
+
+        return input;
+    }
+
+    return 0;
+}
+
+// Linux
+#else
 // Changes the terminal mode to raw so it reads inputs directly
-void raw_mode() {
+void initTerminal() {
     // Current terminal mode is saved and copied to the new mode struct
     tcgetattr(STDIN_FILENO, &orig_termios);
     struct termios new_mode = orig_termios;
@@ -544,7 +618,41 @@ void raw_mode() {
 }
 
 // Changes the terminal mode to the regular procedure, reading inputs as buffers
-void reg_mode() {
+void restoreTerminal() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
     printf("\e[?25h"); // Reactivates cursor on exit
 }
+
+// A function to normalize the keys is needed since both OSes handle input differently 
+unsigned char getKeys() {
+    unsigned char input;
+
+    while (read(STDIN_FILENO, &input, 1) > 0) { 
+        // Enter press check
+        if (input == '\n') {
+            return 250;
+        }
+
+        // Arrow key presses are 'ESC' (ASCII 27), '[' then 'A', 'B', 'C' or 'D'.
+        // So to check for arrow keys, we check for those 3 inputs in sequence
+        if (input == '\e') {
+            input = getchar();
+
+            if (input == '[') {
+                input = getchar();
+
+                switch (input) {
+                    case 'A': return 251; // Up
+                    case 'B': return 252; // Down
+                    case 'C': return 253; // Right
+                    case 'D': return 254; // Left
+                }
+            }
+        }
+
+        return input;
+    }
+
+    return 0;
+}
+#endif
