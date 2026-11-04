@@ -189,12 +189,24 @@ void displayTitle() {
 
 void gameLogic() {
     if (hitFloor) {
+        char newID = ((char)(randomFloat() * 7));
+        
         checkLines();
         
         // If the 'hitFloor' flag is set, a new piece is created at the top of the screen
         line = 10; column = 16; rot = 0;
+        
+        // Tries to ensure the new piece that drops is different from both visible pieces
+        for (int i = 0; i < 5; i++) {
+            if (newID == pieceID || newID == nextID) {
+                newID = ((char)(randomFloat() * 7));
+            } else {
+                break;
+            }
+        }
+
         pieceID = nextID;
-        nextID = ((char)(randomFloat() * 7));
+        nextID = newID;
         hitFloor = 0; dropCount = 0;
         // Check if there are tiles where the piece spawns, if there are, it's game over
         if (checkBoundaries() != 0) {
