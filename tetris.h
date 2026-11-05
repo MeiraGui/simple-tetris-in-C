@@ -154,6 +154,36 @@ const char I_piece[4][4][4] = {  {' ', ' ', ' ', ' ',
 const char (*pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_piece, L_piece, I_piece};
 
 /*
+ * Visual arrays
+ */
+// Elektronika 60 style visuals are based on the original version of Tetris
+const char *eletronika[] = {"\n",   // Next outline top
+                            " ",    // Next outline middle
+                            "\n",   // Next outline bottom
+                            "",     // Dividing line
+                            "<!",   // Play area left
+                            "!>\n", // Play area right
+                            "<!====================!>\n  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n", // Play area bottom
+                        };
+
+     const char *clean[] = {"┌────────┐\n",             // Next outline top
+                            "│",                        // Next outline middle
+                            "└────────┘\n",             // Next outline bottom
+                            "──────────────────────\n", // Dividing line
+                            "║",                        // Play area left
+                            "║\n",                      // Play area right
+                            "╚════════════════════╝\n", // Play area bottom
+                        };
+
+const char **visualsTable[] = {eletronika, clean};
+
+// Arrays that switch colors, first are all bright green, second ones are colorful
+const char   *regular[] = {"\e[38;5;46m", "\e[39m"};
+const char *highlight[] = {"\e[38;5;46m", "\e[38;5;227m",};
+const char  *playArea[] = {"\e[38;5;46m", "\e[38;5;68m"};
+const char  *gameOver[] = {"\e[38;5;46m", "\e[38;5;160m"};
+
+/*
  * Function declarations 
  */
 // Tetris functions
@@ -176,31 +206,5 @@ void moveLinesDown(int linesFound);
 void initTerminal();
 void restoreTerminal();
 unsigned char getKeys();
-
-/*
- * Visual flags
- */
-// Elektronika 60 style visuals are based on the original version of Tetris
-#define AREA_STYLE  1  // 0 for Elektronika 60 style, 1 for cleaner
-#define BLOCK_STYLE 1  // 0 for Elektronika 60 style bracket blocks, 1 for solid blocks
-
-#if AREA_STYLE
-    #define NEXT_TOP    "┌────────┐\n"
-    #define NEXT_MID    "│"
-    #define NEXT_BOTTOM "└────────┘\n"
-    #define DIV_LINE    "──────────────────────\n"
-    #define MAIN_LEFT   "║"
-    #define MAIN_RIGHT  "║\n"
-    #define MAIN_BOTTOM "╚════════════════════╝\n"
-#else
-    #define NEXT_TOP    "!========!\n"
-    #define NEXT_MID    "!"
-    #define NEXT_BOTTOM "!========!\n"
-    #define DIV_LINE    "------------------------\n"
-    #define MAIN_LEFT   "<!"
-    #define MAIN_RIGHT  "!>\n"
-    #define MAIN_BOTTOM "<!====================!>\n  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n"
-#endif
-
 
 #endif

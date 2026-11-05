@@ -20,6 +20,8 @@
 char running = 1;            // Boolean flag for main loop excecution
 char paused = 0;             // Boolean flag for pausing the game
 
+char gameStyle = 1;          // Changes the visuals (0 for Elektronika 60 style, 1 for cleaner)
+
 char line, column;           // Used for the positioning of the pieces
 char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
 char nextID = 0;             // ID used to display the upcoming piece
@@ -37,7 +39,7 @@ int  score = 0;              // Score earned when playing the game, fairly self-
 char Grid[32][32] = {};      // The "play area" of the game, only a 20x20 area is displayed
 
 // Based on the Game Boy version
-char fallSpeeds[21] = {53, 49, 45, 41, 37, 33, 28, 22, 17, 11, 10, 9, 8, 7, 6, 6, 5, 5, 4, 4, 3};
+char fallSpeeds[21] = {52, 48, 44, 40, 36, 32, 27, 21, 16, 10, 9, 8, 7, 6, 5, 5, 4, 4, 3, 3, 2};
 
 unsigned long idum = 0;      // Essentially functions as the "seed" of the random float generator
 
@@ -77,6 +79,10 @@ int main() {
             break;
         }
 
+        if (input == 'p' || input == 'P') {
+            gameStyle ^= 1;
+        }
+
         usleep(1000000 / 6);
     }
 
@@ -106,7 +112,7 @@ resetPoint:
         } else {
             unsigned char input = getKeys();
             printf("        Paused!\n");
-            printf("(\e[38;5;227m'R'\e[39m to reset or \e[38;5;227m'Q'\e[39m to exit)\n");
+            printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
             // Pressing enter unpauses the game
             if (input == 250) {
                 paused = 0;
@@ -134,8 +140,8 @@ resetPoint:
 
     // Game Over
     if (running != 2) {
-        printf("      \e[38;5;160m Game Over!\e[39m\n");
-        printf("(\e[38;5;227m'R'\e[39m to reset or \e[38;5;227m'Q'\e[39m to exit)\n");
+        printf("      %s Game Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
+        printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
 
         while(1) {
             unsigned char input = getKeys();
@@ -150,6 +156,7 @@ resetPoint:
     }
 
     restoreTerminal();
+    printf("\e[39m"); // Restores color to default at exit
     return 0;
 }
 
@@ -180,7 +187,10 @@ void displayTitle() {
     }
 
     printf("\e[39m"); // Default color
-    printf("\n  Press \e[38;5;227mENTER\e[39m to start.");
+    printf("\n\n  Press \e[38;5;227mENTER\e[39m to start.");
+
+    printf("\n\nGame style (P to swap): ");
+    pieceColor('R');
 
     offset = (offset - 1) & 7;
 
@@ -278,10 +288,10 @@ void displayGrid() {
         printf("\n");
     }
 #else
-    printf("   \e[38;5;227mNext\e[39m\n");
-    printf(NEXT_TOP);
+    printf("   %sNext%s\n", highlight[gameStyle], regular[gameStyle]);
+    printf(visualsTable[gameStyle][0]); // Next outline top
     for (int i = 4; i < 6; i++) {
-        printf(NEXT_MID);
+        printf(visualsTable[gameStyle][1]); // Next outline middle
         for (int j = 4; j < 12; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -289,18 +299,19 @@ void displayGrid() {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
         }
-        printf("\e[39m"); // Default color
-        printf(NEXT_MID);
-        if (i == 4) printf(" Score: \e[38;5;227m%d\e[39m", score);
-        if (i == 5) printf(" Level: \e[38;5;227m%d\e[39m", level);
+        printf(regular[gameStyle]); // Default color
+        printf(visualsTable[gameStyle][1]); // Next outline middle
+        if (i == 4) printf(" Score: %s%d%s", highlight[gameStyle], score, regular[gameStyle]);
+        if (i == 5) printf(" Level: %s%d%s", highlight[gameStyle], level, regular[gameStyle]);
         printf("\n");
     }
-    printf(NEXT_BOTTOM);
-    printf(DIV_LINE);
+    printf(visualsTable[gameStyle][2]); // Next outline bottom
+    printf(visualsTable[gameStyle][3]); // Dividing line
 
     for (int i = 10; i < 30; i++) {
-        printf("\e[38;5;68m"); // Bright blue BG
-        printf(MAIN_LEFT);
+        // Non piece tiles can either be bright blue like the IBM PC version or a bright green
+        printf(playArea[gameStyle]);
+        printf(visualsTable[gameStyle][4]); // Play area left
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -308,30 +319,38 @@ void displayGrid() {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
         }
-        printf(MAIN_RIGHT);
+        printf(visualsTable[gameStyle][5]); // Play area right
     }
-    printf(MAIN_BOTTOM);
-    printf("\e[39m"); // Default color
+    printf(visualsTable[gameStyle][6]); // Play area bottom
+    printf(regular[gameStyle]); // Default color
 #endif
 }
 
 void pieceColor(char color) {
-    switch(color) {
-        case 'R': printf("\e[38;5;160m"); break; // Red
-        case 'G': printf("\e[38;5;34m");  break; // Green
-        case 'Y': printf("\e[38;5;184m"); break; // Yellow
-        case 'B': printf("\e[38;5;27m");  break; // Blue
-        case 'M': printf("\e[38;5;129m"); break; // Magenta
-        case 'C': printf("\e[38;5;80m");  break; // Cyan
-        case 'O': printf("\e[38;5;172m"); break; // Orange
-        default:  printf("\e[39m");       break; // Default color
+    
+    if (gameStyle) {
+        switch(color) {
+            case 'R': printf("\e[38;5;160m"); break; // Red
+            case 'G': printf("\e[38;5;34m");  break; // Green
+            case 'Y': printf("\e[38;5;184m"); break; // Yellow
+            case 'B': printf("\e[38;5;27m");  break; // Blue
+            case 'M': printf("\e[38;5;129m"); break; // Magenta
+            case 'C': printf("\e[38;5;80m");  break; // Cyan
+            case 'O': printf("\e[38;5;172m"); break; // Orange
+            default:  printf("\e[39m");       break; // Default color
+        }
+    } else {
+        printf("\e[38;5;46m");
     }
-#if BLOCK_STYLE
-    printf("██");
-#else
-    printf("[]");
-#endif
-    printf("\e[38;5;68m"); // Bright blue for the non piece tiles like the original IBM PC version
+
+    if (gameStyle) {
+        printf("██");
+    } else {
+        printf("[]");
+    }
+
+    // Non piece tiles can either be bright blue like the IBM PC version or a bright green
+    printf(playArea[gameStyle]);
 }
 
 void handleInput() {   
