@@ -8,6 +8,7 @@
 #ifdef _WIN32
     #include <windows.h>
     #include <conio.h>
+    #include <timeapi.h>
 #else
     #include <termios.h>
     struct termios orig_termios; // Original terminal settings to restore
@@ -62,12 +63,7 @@ int main() {
     initTerminal();
 
     // Framerate variables
-#ifdef _WIN32
-    // Windows timing runs slower, so we double the framerate to get close to Linux's speed
     const int FPS = 60;
-#else
-    const int FPS = 30;
-#endif
     const int FRAME_DELAY = 1000000 / FPS; // microseconds per frame
     struct timespec start_time, end_time;
     
@@ -99,12 +95,14 @@ resetPoint:
     fflush(stdout);
 
     score = 0; rot = 0; level = 0; clearedLines = 0;
+    dropCount = 0; timer = 0;
 
     // Main loop initialization
     initializeGrid();
     displayGrid();
 
     line = 10; column = 16; // Initial position of the piece
+    ghLine = line; 
     pieceID = ((char)(randomFloat() * 7));
     nextID = ((char)(randomFloat() * 7));
 
@@ -244,7 +242,6 @@ void gameLogic() {
 
     while (checkBoundaries(1) == 0) {
         ghLine++;
-        dropCount++;
     }
     ghLine--;
 
@@ -258,6 +255,7 @@ void gameLogic() {
             line--;
             hitFloor = 1;
             if (dropCount > 1) score += dropCount;
+            dropCount = 0;
         }
     }
 }
@@ -374,9 +372,7 @@ void pieceColor(char color) {
     printf("%s", playArea[gameStyle]);
 }
 
-void handleInput() {   
-    char downPressed = 0;
-    
+void handleInput() {       
     switch(getKeys()) {
         case 250: // Enter press
             paused = 1;
@@ -397,7 +393,7 @@ void handleInput() {
         case 252: // Down
             // Soft dropping
             timer += fallSpeeds[level] + 1; // Same thing as hard dropping 
-            downPressed = 1;
+            dropCount++; // Holding down increases the dropCount
             break;
         case 253: // Right
             column += 2;
@@ -436,14 +432,6 @@ void handleInput() {
     // ANDed to 0x1F to make sure the pieces wrap around if they get out of bounds
     line &= 0x1F;
     column &= 0x1F;
-
-    if (downPressed == 1) {
-        //printf("down pressed!\n");
-        dropCount++;
-    } else {
-        //printf("down not pressed!\n");
-        dropCount = 0;
-    }
     
 #ifndef _WIN32
     // There can be some issues with holding down on linux so the input buffer is cleared
@@ -622,12 +610,15 @@ void initTerminal() {
         exit(1);
     }
 
+    timeBeginPeriod(1); // Extra timing precision
+
     printf("\e[?25l"); // Disables flashing cursor for cleaner display
     printf("\e[2J\e[H"); // Clears the screen once at the start
 }
 
-// Just enables the cursor, as there is no need to set a "raw mode" on Windows
+// Enables the cursor and returns the timing precision to normal
 void restoreTerminal() {
+    timeEndPeriod(1);
     printf("\e[?25h"); // Reactivates cursor on exit
 }
 
