@@ -21,8 +21,10 @@ char running = 1;            // Boolean flag for main loop excecution
 char paused = 0;             // Boolean flag for pausing the game
 
 char gameStyle = 1;          // Changes the visuals (0 for Elektronika 60 style, 1 for cleaner)
+char showGhost = 1;          // Boolean flag for showing the ghost piece
 
-char line, column;           // Used for the positioning of the pieces
+char line, column;           // Used for positioning the regular piece
+char ghLine;                 // Used for positioning the ghost piece
 char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
 char nextID = 0;             // ID used to display the upcoming piece
 
@@ -88,6 +90,9 @@ int main() {
 
     idum = time(NULL); // Sets the seed to the current time
 
+    // Eletronika 60 style doesn't have ghost pieces
+    if (!gameStyle) showGhost = 0;
+
 resetPoint:
     // Clears the title screen
     printf("\e[H\e[J");
@@ -106,7 +111,7 @@ resetPoint:
     // Main loop
     while (running) {
         clock_gettime(CLOCK_MONOTONIC, &start_time);
-    
+
         if (!paused) {
             gameLogic();
         } else {
@@ -189,7 +194,7 @@ void displayTitle() {
     printf("\e[39m"); // Default color
     printf("\n\n  Press \e[38;5;227mENTER\e[39m to start.");
 
-    printf("\n\nGame style (P to swap): ");
+    printf("\n\nGame style (\e[38;5;227mP\e[39m to swap): ");
     pieceColor('R');
 
     offset = (offset - 1) & 7;
@@ -219,13 +224,14 @@ void gameLogic() {
         nextID = newID;
         hitFloor = 0; dropCount = 0;
         // Check if there are tiles where the piece spawns, if there are, it's game over
-        if (checkBoundaries() != 0) {
+        if (checkBoundaries(0) != 0) {
             running = 0;
             return;
         }
     } else {
         // If the hitFloor flag isn't set, move the piece normally
-        clearPiece();
+        clearPiece(0); // Regular piece
+        clearPiece(1); // Ghost piece
     }
 
     // Every 10 lines the level increases
@@ -233,13 +239,22 @@ void gameLogic() {
 
     handleInput(); // Input handling
     
+    // Moves the ghost piece, essentially "hard dropping" it to the lowest position
+    ghLine = line; 
+
+    while (checkBoundaries(1) == 0) {
+        ghLine++;
+        dropCount++;
+    }
+    ghLine--;
+
     // Every couple of frames the piece automatically moves down a line
     if (timer++ > fallSpeeds[level]) {
         timer = 0;
         line++;
 
         // Finding a non empty tile while moving down means a floor has been hit
-        if (checkBoundaries() != 0) {
+        if (checkBoundaries(0) != 0) {
             line--;
             hitFloor = 1;
             if (dropCount > 1) score += dropCount;
@@ -252,11 +267,14 @@ void renderFrame(char flag) {
     printf("\e[H");
 
     // the flag is to not display the piece after it drops, to not have issues with clearing lines
-    if (flag) displayPiece();
-    displayNextPiece();
-    // Used to show the center of the piece
-    //Grid[line][column] = '{';
-    //Grid[line][column+1] = '}';
+    if (flag) {
+        if (showGhost) displayPiece(1); // Ghost piece
+        displayPiece(0); // Regular piece
+        // Used to show the center of the regular piece
+        //Grid[line][column] = '{';
+        //Grid[line][column+1] = '}';
+    }
+    displayNextPiece(); // Next piece
     displayGrid();
 
     fflush(stdout);
@@ -289,9 +307,9 @@ void displayGrid() {
     }
 #else
     printf("   %sNext%s\n", highlight[gameStyle], regular[gameStyle]);
-    printf(visualsTable[gameStyle][0]); // Next outline top
+    printf("%s", visualsTable[gameStyle][0]); // Next outline top
     for (int i = 4; i < 6; i++) {
-        printf(visualsTable[gameStyle][1]); // Next outline middle
+        printf("%s", visualsTable[gameStyle][1]); // Next outline middle
         for (int j = 4; j < 12; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -299,19 +317,19 @@ void displayGrid() {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
         }
-        printf(regular[gameStyle]); // Default color
-        printf(visualsTable[gameStyle][1]); // Next outline middle
+        printf("%s", regular[gameStyle]); // Default color
+        printf("%s", visualsTable[gameStyle][1]); // Next outline middle
         if (i == 4) printf(" Score: %s%d%s", highlight[gameStyle], score, regular[gameStyle]);
         if (i == 5) printf(" Level: %s%d%s", highlight[gameStyle], level, regular[gameStyle]);
         printf("\n");
     }
-    printf(visualsTable[gameStyle][2]); // Next outline bottom
-    printf(visualsTable[gameStyle][3]); // Dividing line
+    printf("%s", visualsTable[gameStyle][2]); // Next outline bottom
+    printf("%s", visualsTable[gameStyle][3]); // Dividing line
 
     for (int i = 10; i < 30; i++) {
         // Non piece tiles can either be bright blue like the IBM PC version or a bright green
-        printf(playArea[gameStyle]);
-        printf(visualsTable[gameStyle][4]); // Play area left
+        printf("%s", playArea[gameStyle]);
+        printf("%s", visualsTable[gameStyle][4]); // Play area left
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -319,15 +337,22 @@ void displayGrid() {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
         }
-        printf(visualsTable[gameStyle][5]); // Play area right
+        printf("%s", visualsTable[gameStyle][5]); // Play area right
     }
-    printf(visualsTable[gameStyle][6]); // Play area bottom
-    printf(regular[gameStyle]); // Default color
+    printf("%s", visualsTable[gameStyle][6]); // Play area bottom
+    printf("%s", regular[gameStyle]); // Default color
 #endif
 }
 
 void pieceColor(char color) {
-    
+    char flag = 0;
+
+    // Check to make the ghost piece show up as a transparent block
+    if (color == 'H' && gameStyle) {
+        flag = 1;
+        color = Grid[line][column];
+    }
+
     if (gameStyle) {
         switch(color) {
             case 'R': printf("\e[38;5;160m"); break; // Red
@@ -339,18 +364,14 @@ void pieceColor(char color) {
             case 'O': printf("\e[38;5;172m"); break; // Orange
             default:  printf("\e[39m");       break; // Default color
         }
+        printf(flag ? "░░" : "██");
     } else {
         printf("\e[38;5;46m");
-    }
-
-    if (gameStyle) {
-        printf("██");
-    } else {
         printf("[]");
     }
 
     // Non piece tiles can either be bright blue like the IBM PC version or a bright green
-    printf(playArea[gameStyle]);
+    printf("%s", playArea[gameStyle]);
 }
 
 void handleInput() {   
@@ -363,7 +384,7 @@ void handleInput() {
         case 251: // Up
             // Hard dropping
             dropCount = 0;
-            while (checkBoundaries() == 0) {
+            while (checkBoundaries(0) == 0) {
                 line++;
                 dropCount++;
             }
@@ -380,29 +401,32 @@ void handleInput() {
             break;
         case 253: // Right
             column += 2;
-            if (checkBoundaries() != 0) {
+            if (checkBoundaries(0) != 0) {
                 column -= 2;
             }
             break;
         case 254: // Left
             column -= 2;
-            if (checkBoundaries() != 0) {
+            if (checkBoundaries(0) != 0) {
                 column += 2;
             }
             break;
         case 'z': case 'Z':
             rot++;
             rot &= 3;
-            if (checkBoundaries() != 0) {
+            if (checkBoundaries(0) != 0) {
                     rot--;
             }
             break;
         case 'x': case 'X':
             rot--;
             rot &= 3;
-            if (checkBoundaries() != 0) {
+            if (checkBoundaries(0) != 0) {
                     rot++;
             }
+            break;
+        case 'g': case 'G':
+            if (gameStyle) showGhost ^= 1;
             break;
     }
 
@@ -432,12 +456,16 @@ void handleInput() {
 #define centerLine 2
 #define centerColumn 2
 
-void displayPiece() {    
+// 0 = regular piece, 1 = ghost piece
+void displayPiece(char flag) {    
+    char dLine = flag ? ghLine : line;
+
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
+            char pieceChar = flag ? 'H' : pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
-                Grid[line+i][column+j] = pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
-                Grid[line+i][column+(j+1)] = pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
+                Grid[dLine+i][column+j] = pieceChar;
+                Grid[dLine+i][column+(j+1)] = pieceChar;
             }
         }
     }
@@ -452,22 +480,27 @@ void displayNextPiece() {
     }
 }
 
-void clearPiece() {  
+// 0 = regular piece, 1 = ghost piece
+void clearPiece(char flag) {  
+    char cLine = flag ? ghLine : line;
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
-                Grid[line+i][column+j] = ' ';
-                Grid[line+i][column+(j+1)] = '.';
+                Grid[cLine+i][column+j] = ' ';
+                Grid[cLine+i][column+(j+1)] = '.';
             }
         }
     }
 }
 
-char checkBoundaries() { 
+// 0 = regular piece, 1 = ghost piece
+char checkBoundaries(char flag) { 
+    char bLine = flag ? ghLine : line;
+    
     for (int i = -2; i < 2; i++) {
         for (int j = -4; j < 4; j += 2) {
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
-                if (Grid[line+i][column+j] != ' ') {
+                if (Grid[bLine+i][column+j] != ' ') {
                     return 1;
                 }
             }
