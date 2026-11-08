@@ -187,7 +187,7 @@ void displayTitle() {
     printf("\n\n  Press \e[38;5;227mENTER\e[39m to start.");
 
     printf("\n\nGame style (\e[38;5;227mP\e[39m to swap): ");
-    pieceColor('R');
+    pieceColor(RED);
 
     offset = (offset - 1) & 7;
 
@@ -306,14 +306,18 @@ void displayGrid() {
     // shows whole grid including OOB
     for (int i = 0; i < 32; i++) {
         for (int j = 0; j < 32; j += 2) {
+            if (Grid[i][j] < 8) {
+            printf("%d%d", Grid[i][j],Grid[i][j+1]);
+            } else {
             printf("%c%c", Grid[i][j],Grid[i][j+1]);
+            }
         }
         printf("\n");
     }
 #else
     printf("   %sNext%s\n", highlight[gameStyle], regular[gameStyle]);
     printf("%s", visualsTable[gameStyle][0]); // Next outline top
-    for (int i = 4; i < 6; i++) {
+    for (int i = 3; i < 5; i++) {
         printf("%s", visualsTable[gameStyle][1]); // Next outline middle
         for (int j = 4; j < 12; j += 2) {
             if (Grid[i][j] != ' ') { 
@@ -324,8 +328,8 @@ void displayGrid() {
         }
         printf("%s", regular[gameStyle]); // Default color
         printf("%s", visualsTable[gameStyle][1]); // Next outline middle
-        if (i == 4) printf(" Score: %s%d%s", highlight[gameStyle], score, regular[gameStyle]);
-        if (i == 5) printf(" Level: %s%d%s", highlight[gameStyle], level, regular[gameStyle]);
+        if (i == 3) printf(" Score: %s%d%s", highlight[gameStyle], score, regular[gameStyle]);
+        if (i == 4) printf(" Level: %s%d%s", highlight[gameStyle], level, regular[gameStyle]);
         printf("\n");
     }
     printf("%s", visualsTable[gameStyle][2]); // Next outline bottom
@@ -349,26 +353,28 @@ void displayGrid() {
 #endif
 }
 
-void pieceColor(char color) {
+void pieceColor(char colorID) {
     char flag = 0;
 
+    static const char *pieceColors[] = {
+        "\e[38;5;129m", // Magenta
+        "\e[38;5;27m",  // Blue
+        "\e[38;5;160m", // Red
+        "\e[38;5;184m", // Yellow
+        "\e[38;5;34m",  // Green
+        "\e[38;5;172m", // Orange
+        "\e[38;5;80m",  // Cyan
+        "\e[39m"        // Default color (padding for safety)
+    };
+
     // Check to make the ghost piece show up as a transparent block
-    if (color == 'H') {
+    if (colorID == GHO) {
         flag = 1;
-        color = Grid[line][column]; // Color is copied for the current piece so it isn't white
+        colorID = pieceID; // Color is copied for the current piece so the ghost piece is properly colored
     }
 
     if (gameStyle) {
-        switch(color) {
-            case 'R': printf("\e[38;5;160m"); break; // Red
-            case 'G': printf("\e[38;5;34m");  break; // Green
-            case 'Y': printf("\e[38;5;184m"); break; // Yellow
-            case 'B': printf("\e[38;5;27m");  break; // Blue
-            case 'M': printf("\e[38;5;129m"); break; // Magenta
-            case 'C': printf("\e[38;5;80m");  break; // Cyan
-            case 'O': printf("\e[38;5;172m"); break; // Orange
-            default:  printf("\e[39m");       break; // Default color
-        }
+        printf("%s", pieceColors[colorID & 7]);
         printf(flag ? "░░" : "██");
     } else {
         printf("\e[38;5;46m"); // Bright green
@@ -414,17 +420,17 @@ void handleInput() {
             }
             break;
         case 'Z':
-            rot++;
-            rot &= 3;
-            if (checkBoundaries(0) != 0) {
-                    rot--;
-            }
-            break;
-        case 'X':
             rot--;
             rot &= 3;
             if (checkBoundaries(0) != 0) {
                     rot++;
+            }
+            break;
+        case 'X':
+            rot++;
+            rot &= 3;
+            if (checkBoundaries(0) != 0) {
+                    rot--;
             }
             break;
         case 'G':
@@ -444,16 +450,16 @@ void handleInput() {
     return;
 }
 
-#define centerLine 2
+#define centerLine 1
 #define centerColumn 2
 
 // 0 = regular piece, 1 = ghost piece
 void displayPiece(char flag) {    
     char dLine = flag ? ghLine : line;
 
-    for (int i = -2; i < 2; i++) {
+    for (int i = -1; i < 3; i++) {
         for (int j = -4; j < 4; j += 2) {
-            char pieceChar = flag ? 'H' : pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
+            char pieceChar = flag ? GHO : pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)];
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
                 Grid[dLine+i][column+j] = pieceChar;
                 Grid[dLine+i][column+(j+1)] = pieceChar;
@@ -463,10 +469,10 @@ void displayPiece(char flag) {
 }
 
 void displayNextPiece() {   
-    for (int i = -2; i < 2; i++) {
+    for (int i = -1; i < 3; i++) {
         for (int j = -4; j < 4; j += 2) {
-            Grid[4+i][8+j] = pieceTable[nextID][0][centerLine+i][centerColumn+(j/2)];
-            Grid[4+i][8+(j+1)] = pieceTable[nextID][0][centerLine+i][centerColumn+(j/2)];
+            Grid[3+i][8+j] = pieceTable[nextID][0][centerLine+i][centerColumn+(j/2)];
+            Grid[3+i][8+(j+1)] = pieceTable[nextID][0][centerLine+i][centerColumn+(j/2)];
         }
     }
 }
@@ -474,7 +480,7 @@ void displayNextPiece() {
 // 0 = regular piece, 1 = ghost piece
 void clearPiece(char flag) {  
     char cLine = flag ? ghLine : line;
-    for (int i = -2; i < 2; i++) {
+    for (int i = -1; i < 3; i++) {
         for (int j = -4; j < 4; j += 2) {
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
                 Grid[cLine+i][column+j] = ' ';
@@ -488,7 +494,7 @@ void clearPiece(char flag) {
 char checkBoundaries(char flag) { 
     char bLine = flag ? ghLine : line;
     
-    for (int i = -2; i < 2; i++) {
+    for (int i = -1; i < 3; i++) {
         for (int j = -4; j < 4; j += 2) {
             if (pieceTable[pieceID][rot][centerLine+i][centerColumn+(j/2)] != ' ') {
                 if (Grid[bLine+i][column+j] != ' ') {
@@ -508,7 +514,7 @@ void checkLines() {
     char linesFound = 0;
     
     // Only checks the 4 lines around the center, since those are the only ones that can have cleared lines
-    for (int i = -2; i < 2; i++) {
+    for (int i = -1; i < 3; i++) {
         // Check to not remove the OOB tiles under the play area
         if (line+i > 29) {
             break;
