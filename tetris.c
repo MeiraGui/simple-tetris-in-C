@@ -11,6 +11,7 @@
     #include <timeapi.h>
 #else
     #include <termios.h>
+    #include <signal.h>
     struct termios orig_termios; // Original terminal settings to restore
 #endif
 
@@ -36,31 +37,23 @@ char timer = 0;              // Timer for dropping the piece over time
 char hitFloor = 0;           // Boolean flag to check if the piece has hit the floor
 
 char dropCount = 0;          // Counter used to give score for quickly dropping a piece (both soft and hard dropping)
-int  score = 0;              // Score earned when playing the game, fairly self-explanatory
+unsigned int  score = 0;     // Score earned when playing the game, fairly self-explanatory
 
 // Empty tile ' .' Filled Tile '[]'
 char Grid[32][32] = {};      // The "play area" of the game, only a 20x20 area is displayed
 
 // Based on the Game Boy version
-char fallSpeeds[21] = {52, 48, 44, 40, 36, 32, 27, 21, 16, 10, 9, 8, 7, 6, 5, 5, 4, 4, 3, 3, 2};
+char fallSpeeds[26] = {52, 48, 44, 40, 36, 32, 27, 21, 16, 10, 9, 8, 7, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 1, 1};
 
 unsigned long idum = 0;      // Essentially functions as the "seed" of the random float generator
 
-// Pseudo-random random float generator from "Numerical Recipes in C" (page 285)
-float randomFloat() {
-	unsigned long itemp;
-	
-	static unsigned long jflone = 0x3f800000;
-	static unsigned long jflmsk = 0x007fffff;
-	
-	idum = 1664525L*idum + 1013904223L;
-	itemp = jflone | (jflmsk & idum);
-	
-	return (*(float *)&itemp) - 1.0f;	
-}
+char screenBuffer[4096];     // All of the text is stored in this buffer before being render to the screen at once
 
 int main() {
     initTerminal();
+
+    // Full buffer is enabled so it only prints to the screen when fflush is called
+    setvbuf(stdout, screenBuffer, _IOFBF, sizeof(screenBuffer));
 
     // Framerate variables
     const int FPS = 60;
@@ -77,7 +70,7 @@ int main() {
             break;
         }
 
-        if (input == 'p' || input == 'P') {
+        if (input == 'P') {
             gameStyle ^= 1;
         }
 
@@ -86,8 +79,8 @@ int main() {
 
     idum = time(NULL); // Sets the seed to the current time
 
-    // Eletronika 60 style doesn't have ghost pieces
-    if (!gameStyle) showGhost = 0;
+    // Making showGhost the gameStyle ID makes the Eletronika 60 style not have ghost pieces (it's ID 0)
+    showGhost = gameStyle;
 
 resetPoint:
     // Clears the title screen
@@ -103,8 +96,8 @@ resetPoint:
 
     line = 10; column = 16; // Initial position of the piece
     ghLine = line; 
-    pieceID = ((char)(randomFloat() * 7));
-    nextID = ((char)(randomFloat() * 7));
+    pieceID = randomPieceID();
+    nextID = randomPieceID();
 
     // Main loop
     while (running) {
@@ -120,10 +113,10 @@ resetPoint:
             if (input == 250) {
                 paused = 0;
                 printf("\e[1J"); // Clears the pause text when the game is unpaused
-            } else if (input == 'r' || input == 'R') {
+            } else if (input == 'R') {
                 paused = 0;
                 goto resetPoint;
-            } else if (input == 'q' || input == 'Q') {
+            } else if (input == 'Q') {
                 running = 2; // Set to 2 to not go into the game over code
                 break;
             }
@@ -145,14 +138,15 @@ resetPoint:
     if (running != 2) {
         printf("      %s Game Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
         printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
+        fflush(stdout);
 
         while(1) {
             unsigned char input = getKeys();
             
-            if (input == 'r' || input == 'R') {
+            if (input == 'R') {
                 running = 1;
                 goto resetPoint;
-            } else if (input == 'q' || input == 'Q') {
+            } else if (input == 'Q') {
                 break;
             }
         }
@@ -168,24 +162,24 @@ resetPoint:
  */
 char offset = 0; // Switches the colors of each letter
 void displayTitle() {
-    const char color[] = {'R', 'O', 'Y', 'G', 'C', 'B', 'M', 'D'};
-    const char letter[] = {'T', 'e', 't', 'r', 'i', 's', '!', '\0'};
+    static const char *color[] = {
+        "\e[38;5;160m", // Red
+        "\e[38;5;172m", // Orange
+        "\e[38;5;184m", // Yellow
+        "\e[38;5;34m",  // Green
+        "\e[38;5;80m",  // Cyan
+        "\e[38;5;27m",  // Blue
+        "\e[38;5;129m", // Magenta
+        "\e[39m"        // Default color
+        };
+    static const char letter[] = {"Tetris!"};
     
     // H ANSII comand moves the cursor to the top left of the screen
     printf("\e[H");
 
     printf("        ");
     for (int i = 0; i < 7; i++) {
-        switch(color[(i+offset)&7]) {
-            case 'R': printf("\e[38;5;160m"); break; // Red
-            case 'G': printf("\e[38;5;34m");  break; // Green
-            case 'Y': printf("\e[38;5;184m"); break; // Yellow
-            case 'B': printf("\e[38;5;27m");  break; // Blue
-            case 'M': printf("\e[38;5;129m"); break; // Magenta
-            case 'C': printf("\e[38;5;80m");  break; // Cyan
-            case 'O': printf("\e[38;5;172m"); break; // Orange
-            default:  printf("\e[39m");       break; // Default color
-        }
+        printf("%s", color[(i+offset) & 7]);
         printf("%c", letter[i]);
     }
 
@@ -202,7 +196,7 @@ void displayTitle() {
 
 void gameLogic() {
     if (hitFloor) {
-        char newID = ((char)(randomFloat() * 7));
+        char newID = randomPieceID();
         
         checkLines();
         
@@ -212,7 +206,7 @@ void gameLogic() {
         // Tries to ensure the new piece that drops is different from both visible pieces
         for (int i = 0; i < 5; i++) {
             if (newID == pieceID || newID == nextID) {
-                newID = ((char)(randomFloat() * 7));
+                newID = randomPieceID();
             } else {
                 break;
             }
@@ -224,6 +218,7 @@ void gameLogic() {
         // Check if there are tiles where the piece spawns, if there are, it's game over
         if (checkBoundaries(0) != 0) {
             running = 0;
+            ghLine = line; // Fixes a slight visual bug with the ghost piece on game over
             return;
         }
     } else {
@@ -253,11 +248,23 @@ void gameLogic() {
         // Finding a non empty tile while moving down means a floor has been hit
         if (checkBoundaries(0) != 0) {
             line--;
+            dropCount--; // - 1 because it counts 1 extra line for the floor collision check
             hitFloor = 1;
-            if (dropCount > 1) score += dropCount;
+            if (dropCount > 0) score += dropCount;
             dropCount = 0;
         }
     }
+}
+
+// Modified version of the Pseudo-random random float generator from "Numerical Recipes in C" (page 285),
+// "Numerical Recipes in C" (page 285), to use integers instead of floats
+char randomPieceID() {
+    idum = 1664525L*idum + 1013904223L;
+
+    // The high bits are the most random, so we use those
+    unsigned int highBits = (unsigned int)idum >> 16;
+
+    return (char)(highBits % 7);
 }
 
 void renderFrame(char flag) {
@@ -346,9 +353,9 @@ void pieceColor(char color) {
     char flag = 0;
 
     // Check to make the ghost piece show up as a transparent block
-    if (color == 'H' && gameStyle) {
+    if (color == 'H') {
         flag = 1;
-        color = Grid[line][column];
+        color = Grid[line][column]; // Color is copied for the current piece so it isn't white
     }
 
     if (gameStyle) {
@@ -364,7 +371,7 @@ void pieceColor(char color) {
         }
         printf(flag ? "░░" : "██");
     } else {
-        printf("\e[38;5;46m");
+        printf("\e[38;5;46m"); // Bright green
         printf("[]");
     }
 
@@ -388,7 +395,6 @@ void handleInput() {
             // Setting the timer to the limit is a bit janky but ensures
             // the floor hit check is done immediately while hard dropping
             timer += fallSpeeds[level] + 1;
-            if (dropCount > 1) score += dropCount;
             break;
         case 252: // Down
             // Soft dropping
@@ -407,22 +413,24 @@ void handleInput() {
                 column += 2;
             }
             break;
-        case 'z': case 'Z':
+        case 'Z':
             rot++;
             rot &= 3;
             if (checkBoundaries(0) != 0) {
                     rot--;
             }
             break;
-        case 'x': case 'X':
+        case 'X':
             rot--;
             rot &= 3;
             if (checkBoundaries(0) != 0) {
                     rot++;
             }
             break;
-        case 'g': case 'G':
-            if (gameStyle) showGhost ^= 1;
+        case 'G':
+            // Doing an XOR with the gameStyle variable directly makes it so
+            // the Eletronika 60 style (ID 0) can't toggle showGhost on 
+            showGhost ^= gameStyle;
             break;
     }
 
@@ -432,11 +440,6 @@ void handleInput() {
     // ANDed to 0x1F to make sure the pieces wrap around if they get out of bounds
     line &= 0x1F;
     column &= 0x1F;
-    
-#ifndef _WIN32
-    // There can be some issues with holding down on linux so the input buffer is cleared
-    tcflush(STDIN_FILENO, TCIFLUSH);
-#endif
 
     return;
 }
@@ -498,11 +501,13 @@ char checkBoundaries(char flag) {
     return 0;
 }
 
+// Stores the found lines so only the lines above them are moved downward
 char foundLinesArr[4] = {};
 
 void checkLines() {
     char linesFound = 0;
     
+    // Only checks the 4 lines around the center, since those are the only ones that can have cleared lines
     for (int i = -2; i < 2; i++) {
         // Check to not remove the OOB tiles under the play area
         if (line+i > 29) {
@@ -515,21 +520,17 @@ void checkLines() {
             }
             if (j == 24) {
                 clearLine(line+i);
-                linesFound++;
-                clearedLines++;
                 // Line - 1 because the line that was cleared will never be moved down, since it has no tiles
                 foundLinesArr[linesFound] = line+i - 1;
+                linesFound++;
+                clearedLines++;
             }
         }
     }
 
     // Score changes based on line count and level, like the NES version
-    switch (linesFound) {
-        case 1: score += 40 * (level + 1);   break;
-        case 2: score += 100 * (level + 1);  break;
-        case 3: score += 300 * (level + 1);  break;
-        case 4: score += 1200 * (level + 1); break;
-    }
+    static const int baseScore[] = {0, 40, 100, 300, 1200};
+    score += baseScore[linesFound] * (level + 1);
 
     // Pauses briefly to showcase the cleared lines before moving down and to give slight breathing room
     renderFrame(0);
@@ -555,21 +556,15 @@ void clearLine(int line) {
 }
 
 void moveLinesDown(int linesFound) {
-    for (int i = 0; i < linesFound; i++) {
-        for (int i = foundLinesArr[linesFound]; i >= 8; i--) {
+    for (int l = 0; l < linesFound; l++) {
+        for (int i = foundLinesArr[l]; i >= 8; i--) {
             for (int j = 6; j < 26; j += 2) {
-                // If a non blank tile is found...
-                if (Grid[i][j] != ' ') {
-                    // And the tile below the non blank tile is blank...
-                    if (Grid[i+1][j] == ' ') {
-                        // Move the non blank tile to the empty one
-                        Grid[i+1][j] = Grid[i][j];
-                        Grid[i+1][j+1] = Grid[i][j+1];
-                        // And then blank out the tile its currently in
-                        Grid[i][j] = ' ';
-                        Grid[i][j+1] = '.';
-                    }
-                }
+                // Move every tile down
+                Grid[i+1][j] = Grid[i][j];
+                Grid[i+1][j+1] = Grid[i][j+1];
+                // And then blank out the tile it's currently in
+                Grid[i][j] = ' ';
+                Grid[i][j+1] = '.';
             }
         }
     }
@@ -646,6 +641,10 @@ unsigned char getKeys() {
             }
         }
 
+        if (input >= 'a' && input <= 'z') { 
+            return input & ~32; // Turns lowercase characters into uppercase
+        }
+
         return input;
     }
 
@@ -654,6 +653,12 @@ unsigned char getKeys() {
 
 // Linux
 #else
+// Reverts the terminal changes if the game is closed early with ctrl C
+void handleSignal() {
+    restoreTerminal();
+    exit(0);
+}
+
 // Changes the terminal mode to raw so it reads inputs directly
 void initTerminal() {
     // Current terminal mode is saved and copied to the new mode struct
@@ -667,6 +672,10 @@ void initTerminal() {
     // Sets the NONBLOCK flag so it doesn't wait for input
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+
+    // Used to safely restore terminal settings if the game is closed early
+    signal(SIGINT, handleSignal);
+    signal(SIGTERM, handleSignal);
 
     printf("\e[?25l"); // Disables flashing cursor for cleaner display
     printf("\e[2J\e[H"); // Clears the screen once at the start
@@ -691,18 +700,20 @@ unsigned char getKeys() {
         // Arrow key presses are 'ESC' (ASCII 27), '[' then 'A', 'B', 'C' or 'D'.
         // So to check for arrow keys, we check for those 3 inputs in sequence
         if (input == '\e') {
-            input = getchar();
-
-            if (input == '[') {
-                input = getchar();
-
-                switch (input) {
-                    case 'A': return 251; // Up
-                    case 'B': return 252; // Down
-                    case 'C': return 253; // Right
-                    case 'D': return 254; // Left
+            if (read(STDIN_FILENO, &input, 1) > 0 && input == '[') {
+                if (read(STDIN_FILENO, &input, 1) > 0) {
+                    switch (input) {  
+                        case 'A': return 251; // Up
+                        case 'B': return 252; // Down
+                        case 'C': return 253; // Right
+                        case 'D': return 254; // Left
+                    }
                 }
             }
+        }
+
+        if (input >= 'a' && input <= 'z') { 
+            return input & ~32; // Turns lowercase characters into uppercase
         }
 
         return input;

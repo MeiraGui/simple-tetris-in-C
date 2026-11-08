@@ -151,7 +151,7 @@ const char I_piece[4][4][4] = {  {' ', ' ', ' ', ' ',
                                   ' ', ' ', 'C', ' ',},
                           };                          
 
-const char (*pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_piece, L_piece, I_piece};
+const char (*const pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_piece, L_piece, I_piece};
 
 /*
  * Visual arrays
@@ -189,6 +189,7 @@ const char  *gameOver[] = {"\e[38;5;46m", "\e[38;5;160m"};
 // Tetris functions
 void displayTitle();
 void gameLogic();
+char randomPieceID();
 void renderFrame(char flag);
 void initializeGrid();
 void displayGrid();
@@ -203,6 +204,9 @@ void clearLine(int line);
 void moveLinesDown(int linesFound);
 
 // Terminal functions
+#ifndef _WIN32
+void handleSignal();
+#endif
 void initTerminal();
 void restoreTerminal();
 unsigned char getKeys();
