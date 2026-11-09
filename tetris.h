@@ -1,6 +1,10 @@
 #ifndef TETRIS_H
 #define TETRIS_H
 
+/*
+ * Enums
+ */
+
 // Each color has a number ID to acess the pieceColor lookup table
 enum {
     MAG, // Magenta
@@ -13,9 +17,18 @@ enum {
     GHO  // Ghost piece ID
 };
 
+// Game states to switch between
+enum {
+    TITLE_STATE,
+    GAME_STATE,
+    PAUSE_STATE,
+    GAMEOVER_STATE
+};
+
 /*
  * Piece arrays 
  */
+
 const char T_piece[4][4][4] = {  {' ', ' ', ' ', ' ',
                                   ' ', MAG, MAG, MAG,
                                   ' ', ' ', MAG, ' ',
@@ -168,6 +181,7 @@ const char (*const pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_
 /*
  * Visual arrays
  */
+
 // Elektronika 60 style visuals are based on the original version of Tetris
 const char *eletronika[] = {"\n",   // Next outline top
                             " ",    // Next outline middle
@@ -198,26 +212,39 @@ const char  *gameOver[] = {"\e[38;5;46m", "\e[38;5;160m"};
 /*
  * Function declarations 
  */
-// Tetris functions
-void displayTitle();
-void gameLogic();
-char randomPieceID();
-void renderFrame(char flag);
+
+/* Tetris functions */
+
+// Main loops
+void titleLoop();
+void gameLoop();
+void pauseLoop();
+void gameOverLoop();
+// Reset and initialization
+void resetGame();
 void initializeGrid();
+// Main display functions
+void displayTitle();
 void displayGrid();
+void renderFrame(char flag);
+// Piece display and movement
+char randomPieceID();
 void pieceColor(char color);
-void handleInput();
 void displayPiece(char flag);
 void displayNextPiece();
 void clearPiece(char flag);
 char checkBoundaries(char flag);
+// Line clear functions
 void checkLines();
 void clearLine(int line);
 void moveLinesDown(int linesFound);
+// Input
+void handleInput();
 
-// Terminal functions
+/* Terminal functions */
+
 #ifndef _WIN32
-void handleSignal();
+void handleSignal(); // Linux only
 #endif
 void initTerminal();
 void restoreTerminal();

@@ -19,35 +19,32 @@
  * Global variables
  */
 
-char running = 1;            // Boolean flag for main loop excecution
-char paused = 0;             // Boolean flag for pausing the game
+char running = 1;             // Boolean flag for main loop excecution
+char gameState = TITLE_STATE; // Changes the state the game is in
 
-char gameStyle = 1;          // Changes the visuals (0 for Elektronika 60 style, 1 for cleaner)
-char showGhost = 1;          // Boolean flag for showing the ghost piece
+char gameStyle = 1;           // Changes the visuals (0 for Elektronika 60 style, 1 for cleaner)
+char showGhost = 1;           // Boolean flag for showing the ghost piece
 
-char line, column;           // Used for positioning the regular piece
-char ghLine;                 // Used for positioning the ghost piece
-char rot = 0, pieceID = 0;   // Rotation of the piece (0-3) and which one it is (0-6)
-char nextID = 0;             // ID used to display the upcoming piece
+char line, column;            // Used for positioning the regular piece
+char ghLine;                  // Used for positioning the ghost piece
+char rot = 0, pieceID = 0;    // Rotation of the piece (0-3) and which one it is (0-6)
+char nextID = 0;              // ID used to display the upcoming piece
 
 unsigned char clearedLines = 0; // Counter for every line cleared, for every 10 lines, a level increases
 unsigned char level = 0;        // Level the game is on, determines how fast a piece drops
 
-char timer = 0;              // Timer for dropping the piece over time
-char hitFloor = 0;           // Boolean flag to check if the piece has hit the floor
+char timer = 0;               // Timer for dropping the piece over time
+char hitFloor = 0;            // Boolean flag to check if the piece has hit the floor
 
-char dropCount = 0;          // Counter used to give score for quickly dropping a piece (both soft and hard dropping)
-unsigned int  score = 0;     // Score earned when playing the game, fairly self-explanatory
+char dropCount = 0;           // Counter used to give score for quickly dropping a piece (both soft and hard dropping)
+unsigned int  score = 0;      // Score earned when playing the game, fairly self-explanatory
 
 // Empty tile ' .' Filled Tile '[]'
-char Grid[32][32] = {};      // The "play area" of the game, only a 20x20 area is displayed
+char Grid[32][32] = {};       // The "play area" of the game, only a 20x20 area is displayed
 
-// Based on the Game Boy version
-char fallSpeeds[26] = {52, 48, 44, 40, 36, 32, 27, 21, 16, 10, 9, 8, 7, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 1, 1};
+unsigned long idum = 0;       // Essentially functions as the "seed" of the random float generator
 
-unsigned long idum = 0;      // Essentially functions as the "seed" of the random float generator
-
-char screenBuffer[4096];     // All of the text is stored in this buffer before being render to the screen at once
+char screenBuffer[4096];      // All of the text is stored in this buffer before being render to the screen at once
 
 int main() {
     initTerminal();
@@ -60,69 +57,17 @@ int main() {
     const int FRAME_DELAY = 1000000 / FPS; // microseconds per frame
     struct timespec start_time, end_time;
     
-    // Title screen
-    while (1) {
-        displayTitle();
-        unsigned char input = getKeys();
-
-        // Enter press check
-        if (input == 250) {
-            break;
-        }
-
-        if (input == 'P') {
-            gameStyle ^= 1;
-        }
-
-        usleep(1000000 / 6);
-    }
-
     idum = time(NULL); // Sets the seed to the current time
 
-    // Making showGhost the gameStyle ID makes the Eletronika 60 style not have ghost pieces (it's ID 0)
-    showGhost = gameStyle;
-
-resetPoint:
-    // Clears the title screen
-    printf("\e[H\e[J");
-    fflush(stdout);
-
-    score = 0; rot = 0; level = 0; clearedLines = 0;
-    dropCount = 0; timer = 0;
-
-    // Main loop initialization
-    initializeGrid();
-    displayGrid();
-
-    line = 10; column = 16; // Initial position of the piece
-    ghLine = line; 
-    pieceID = randomPieceID();
-    nextID = randomPieceID();
-
-    // Main loop
     while (running) {
         clock_gettime(CLOCK_MONOTONIC, &start_time);
 
-        if (!paused) {
-            gameLogic();
-        } else {
-            unsigned char input = getKeys();
-            printf("        Paused!\n");
-            printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
-            // Pressing enter unpauses the game
-            if (input == 250) {
-                paused = 0;
-                printf("\e[1J"); // Clears the pause text when the game is unpaused
-            } else if (input == 'R') {
-                paused = 0;
-                goto resetPoint;
-            } else if (input == 'Q') {
-                running = 2; // Set to 2 to not go into the game over code
-                break;
-            }
+        switch (gameState) {
+            case TITLE_STATE:    titleLoop();    break;
+            case GAME_STATE:     gameLoop();     break;
+            case PAUSE_STATE:    pauseLoop();    break;
+            case GAMEOVER_STATE: gameOverLoop(); break;
         }
-
-        renderFrame(1);
 
         // Framerate regulation
         clock_gettime(CLOCK_MONOTONIC, &end_time);
@@ -134,24 +79,6 @@ resetPoint:
         }
     }
 
-    // Game Over
-    if (running != 2) {
-        printf("      %s Game Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
-        printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
-        fflush(stdout);
-
-        while(1) {
-            unsigned char input = getKeys();
-            
-            if (input == 'R') {
-                running = 1;
-                goto resetPoint;
-            } else if (input == 'Q') {
-                break;
-            }
-        }
-    }
-
     restoreTerminal();
     printf("\e[39m"); // Restores color to default at exit
     return 0;
@@ -160,41 +87,29 @@ resetPoint:
 /*
  * Tetris functions
  */
-char offset = 0; // Switches the colors of each letter
-void displayTitle() {
-    static const char *color[] = {
-        "\e[38;5;160m", // Red
-        "\e[38;5;172m", // Orange
-        "\e[38;5;184m", // Yellow
-        "\e[38;5;34m",  // Green
-        "\e[38;5;80m",  // Cyan
-        "\e[38;5;27m",  // Blue
-        "\e[38;5;129m", // Magenta
-        "\e[39m"        // Default color
-        };
-    static const char letter[] = {"Tetris!"};
-    
-    // H ANSII comand moves the cursor to the top left of the screen
-    printf("\e[H");
 
-    printf("        ");
-    for (int i = 0; i < 7; i++) {
-        printf("%s", color[(i+offset) & 7]);
-        printf("%c", letter[i]);
+unsigned char titleTimer = 0; // Used to slow down the color cycling of the "Tetris!" text
+void titleLoop() {
+    titleTimer++;
+    
+    displayTitle();
+
+    unsigned char input = getKeys();
+
+    // Enter press check
+    if (input == 250) {
+        resetGame();
+        gameState = GAME_STATE;
     }
 
-    printf("\e[39m"); // Default color
-    printf("\n\n  Press \e[38;5;227mENTER\e[39m to start.");
-
-    printf("\n\nGame style (\e[38;5;227mP\e[39m to swap): ");
-    pieceColor(RED);
-
-    offset = (offset - 1) & 7;
-
-    fflush(stdout);
+    if (input == 'P') {
+        gameStyle ^= 1;
+    }
 }
 
-void gameLogic() {
+// Based on the Game Boy version
+char fallSpeeds[26] = {52, 48, 44, 40, 36, 32, 27, 21, 16, 10, 9, 8, 7, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 1, 1};
+void gameLoop() {
     if (hitFloor) {
         char newID = randomPieceID();
         
@@ -217,8 +132,9 @@ void gameLogic() {
         hitFloor = 0; dropCount = 0;
         // Check if there are tiles where the piece spawns, if there are, it's game over
         if (checkBoundaries(0) != 0) {
-            running = 0;
+            gameState = GAMEOVER_STATE;
             ghLine = line; // Fixes a slight visual bug with the ghost piece on game over
+            renderFrame(1);
             return;
         }
     } else {
@@ -254,35 +170,71 @@ void gameLogic() {
             dropCount = 0;
         }
     }
+
+    renderFrame(1);
 }
 
-// Modified version of the Pseudo-random random float generator from "Numerical Recipes in C" (page 285),
-// "Numerical Recipes in C" (page 285), to use integers instead of floats
-char randomPieceID() {
-    idum = 1664525L*idum + 1013904223L;
+void pauseLoop() {
+    printf("        Paused!\n");
+    printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
+    fflush(stdout);
 
-    // The high bits are the most random, so we use those
-    unsigned int highBits = (unsigned int)idum >> 16;
-
-    return (char)(highBits % 7);
-}
-
-void renderFrame(char flag) {
-    // H ANSII comand moves the cursor to the top left of the screen
-    printf("\e[H");
-
-    // the flag is to not display the piece after it drops, to not have issues with clearing lines
-    if (flag) {
-        if (showGhost) displayPiece(1); // Ghost piece
-        displayPiece(0); // Regular piece
-        // Used to show the center of the regular piece
-        //Grid[line][column] = '{';
-        //Grid[line][column+1] = '}';
+    while(1) {
+        unsigned char input = getKeys();
+        
+        // Pressing enter unpauses the game
+        if (input == 250) {
+            gameState = GAME_STATE;
+            printf("\e[1J"); // Clears the pause text when the game is unpaused
+            break;
+        } else if (input == 'R') {
+            resetGame();
+            gameState = GAME_STATE;
+            break;
+        } else if (input == 'Q') {
+            running = 0;
+            break;
+        }
     }
-    displayNextPiece(); // Next piece
+}
+
+void gameOverLoop() {
+    printf("      %s Game Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
+    printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
+    fflush(stdout);
+
+    while(1) {
+        unsigned char input = getKeys();
+        
+        if (input == 'R') {
+            resetGame();
+            gameState = GAME_STATE;
+            break;
+        } else if (input == 'Q') {
+            running = 0;
+            break;
+        }
+    }
+}
+
+void resetGame() {
+    // Making showGhost the gameStyle ID makes the Eletronika 60 style not have ghost pieces (it's ID 0)
+    showGhost = gameStyle;
+
+    printf("\e[H\e[J");
+    fflush(stdout);
+
+    score = 0; rot = 0; level = 0; clearedLines = 0;
+    dropCount = 0; timer = 0;
+
+    // Main loop initialization
+    initializeGrid();
     displayGrid();
 
-    fflush(stdout);
+    line = 10; column = 16; // Initial position of the piece
+    ghLine = line; 
+    pieceID = randomPieceID();
+    nextID = randomPieceID();
 }
 
 void initializeGrid() {
@@ -299,6 +251,41 @@ void initializeGrid() {
             Grid[i][j+1] = '.';
         }
     }
+}
+
+char offset = 0; // Switches the colors of each letter
+void displayTitle() {
+    static const char *color[] = {
+        "\e[38;5;160m", // Red
+        "\e[38;5;172m", // Orange
+        "\e[38;5;184m", // Yellow
+        "\e[38;5;34m",  // Green
+        "\e[38;5;80m",  // Cyan
+        "\e[38;5;27m",  // Blue
+        "\e[38;5;129m", // Magenta
+        "\e[39m"        // Default color
+        };
+    static const char letter[] = {"Tetris!"};
+    
+    // H ANSII comand moves the cursor to the top left of the screen
+    printf("\e[H");
+
+    printf("        ");
+    for (int i = 0; i < 7; i++) {
+        printf("%s", color[(i+offset) & 7]);
+        printf("%c", letter[i]);
+    }
+
+    printf("\e[39m"); // Default color
+    printf("\n\n  Press \e[38;5;227mENTER\e[39m to start.");
+
+    printf("\n\nGame style (\e[38;5;227mP\e[39m to swap): ");
+    pieceColor(RED);
+
+    // titleTimer slows down the rate the colors move
+    if ((titleTimer % 10) == 0) offset = (offset - 1) & 7;
+
+    fflush(stdout);
 }
 
 void displayGrid() {
@@ -353,6 +340,35 @@ void displayGrid() {
 #endif
 }
 
+void renderFrame(char flag) {
+    // H ANSII comand moves the cursor to the top left of the screen
+    printf("\e[H");
+
+    // the flag is to not display the piece after it drops, to not have issues with clearing lines
+    if (flag) {
+        if (showGhost) displayPiece(1); // Ghost piece
+        displayPiece(0); // Regular piece
+        // Used to show the center of the regular piece
+        //Grid[line][column] = '{';
+        //Grid[line][column+1] = '}';
+    }
+    displayNextPiece(); // Next piece
+    displayGrid();
+
+    fflush(stdout);
+}
+
+// Modified version of the Pseudo-random random float generator from "Numerical Recipes in C" (page 285),
+// "Numerical Recipes in C" (page 285), to use integers instead of floats
+char randomPieceID() {
+    idum = 1664525L*idum + 1013904223L;
+
+    // The high bits are the most random, so we use those
+    unsigned int highBits = (unsigned int)idum >> 16;
+
+    return (char)(highBits % 7);
+}
+
 void pieceColor(char colorID) {
     char flag = 0;
 
@@ -383,71 +399,6 @@ void pieceColor(char colorID) {
 
     // Non piece tiles can either be bright blue like the IBM PC version or a bright green
     printf("%s", playArea[gameStyle]);
-}
-
-void handleInput() {       
-    switch(getKeys()) {
-        case 250: // Enter press
-            paused = 1;
-            return;
-        case 251: // Up
-            // Hard dropping
-            dropCount = 0;
-            while (checkBoundaries(0) == 0) {
-                line++;
-                dropCount++;
-            }
-            line--;
-            // Setting the timer to the limit is a bit janky but ensures
-            // the floor hit check is done immediately while hard dropping
-            timer += fallSpeeds[level] + 1;
-            break;
-        case 252: // Down
-            // Soft dropping
-            timer += fallSpeeds[level] + 1; // Same thing as hard dropping 
-            dropCount++; // Holding down increases the dropCount
-            break;
-        case 253: // Right
-            column += 2;
-            if (checkBoundaries(0) != 0) {
-                column -= 2;
-            }
-            break;
-        case 254: // Left
-            column -= 2;
-            if (checkBoundaries(0) != 0) {
-                column += 2;
-            }
-            break;
-        case 'Z':
-            rot--;
-            rot &= 3;
-            if (checkBoundaries(0) != 0) {
-                    rot++;
-            }
-            break;
-        case 'X':
-            rot++;
-            rot &= 3;
-            if (checkBoundaries(0) != 0) {
-                    rot--;
-            }
-            break;
-        case 'G':
-            // Doing an XOR with the gameStyle variable directly makes it so
-            // the Eletronika 60 style (ID 0) can't toggle showGhost on 
-            showGhost ^= gameStyle;
-            break;
-    }
-
-    // ANDed to 3 to make sure the rotations don't get out of bounds
-    rot &= 3;
-
-    // ANDed to 0x1F to make sure the pieces wrap around if they get out of bounds
-    line &= 0x1F;
-    column &= 0x1F;
-
-    return;
 }
 
 #define centerLine 1
@@ -574,6 +525,71 @@ void moveLinesDown(int linesFound) {
             }
         }
     }
+}
+
+void handleInput() {       
+    switch(getKeys()) {
+        case 250: // Enter press
+            gameState = PAUSE_STATE;
+            return;
+        case 251: // Up
+            // Hard dropping
+            dropCount = 0;
+            while (checkBoundaries(0) == 0) {
+                line++;
+                dropCount++;
+            }
+            line--;
+            // Setting the timer to the limit is a bit janky but ensures
+            // the floor hit check is done immediately while hard dropping
+            timer += fallSpeeds[level] + 1;
+            break;
+        case 252: // Down
+            // Soft dropping
+            timer += fallSpeeds[level] + 1; // Same thing as hard dropping 
+            dropCount++; // Holding down increases the dropCount
+            break;
+        case 253: // Right
+            column += 2;
+            if (checkBoundaries(0) != 0) {
+                column -= 2;
+            }
+            break;
+        case 254: // Left
+            column -= 2;
+            if (checkBoundaries(0) != 0) {
+                column += 2;
+            }
+            break;
+        case 'Z':
+            rot--;
+            rot &= 3;
+            if (checkBoundaries(0) != 0) {
+                    rot++;
+            }
+            break;
+        case 'X':
+            rot++;
+            rot &= 3;
+            if (checkBoundaries(0) != 0) {
+                    rot--;
+            }
+            break;
+        case 'G':
+            // Doing an XOR with the gameStyle variable directly makes it so
+            // the Eletronika 60 style (ID 0) can't toggle showGhost on 
+            showGhost ^= gameStyle;
+            break;
+    }
+
+    // ANDed to 3 to make sure the rotations don't get out of bounds
+    rot &= 3;
+
+    // ANDed to 0x1F to make sure the pieces wrap around if they get out of bounds
+    line &= 0x1F;
+    column &= 0x1F;
+
+    return;
 }
 
 /*
