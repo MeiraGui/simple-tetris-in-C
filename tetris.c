@@ -171,6 +171,7 @@ void gameLoop() {
         }
     }
 
+    randomPieceID(); // Advances the RNG every frame for some extra variety
     renderFrame(1);
 }
 
@@ -361,12 +362,19 @@ void renderFrame(char flag) {
 // Modified version of the Pseudo-random random float generator from "Numerical Recipes in C" (page 285),
 // "Numerical Recipes in C" (page 285), to use integers instead of floats
 char randomPieceID() {
-    idum = 1664525L*idum + 1013904223L;
+    char result;
+    
+    do {
+        idum = 1664525L*idum + 1013904223L;
+        // The high bits are the most random, so we use those
+        unsigned int  highBits = (unsigned int)idum >> 16;
 
-    // The high bits are the most random, so we use those
-    unsigned int highBits = (unsigned int)idum >> 16;
+        // AND 7 makes it a more even distribution, but because there are
+        // only 7 pieces we roll again if the AND results in a 7
+        result = (char)(highBits & 7);
+    } while (result == 7);
 
-    return (char)(highBits % 7);
+    return result;
 }
 
 void pieceColor(char colorID) {
@@ -458,6 +466,28 @@ char checkBoundaries(char flag) {
     return 0;
 }
 
+// flag is used to change the direction bias:
+// 0 has a left bias, 1 has a right bias
+char tryWallKick(char flag) {
+    static const char yOffsets[] = {0,  0, 1, 1, 1};
+    static const char xOffsets[2][5] = {{-2, 2, 0, -2, 2},
+                                        {2, -2, 0, 2, -2}};
+    
+    //printf("%s", flag ? "right!": "left!");
+
+    for (int i = 0; i < 5; i++) {
+        line += yOffsets[i];
+        column += xOffsets[flag][i];
+        if (checkBoundaries(0) == 0) {
+            return 0;
+        }
+        line -= yOffsets[i];
+        column -= xOffsets[flag][i];
+    }
+
+    return 1; // If all wall kick attempts fail, return 1 to revert the rotation
+}
+
 // Stores the found lines so only the lines above them are moved downward
 char foundLinesArr[4] = {};
 
@@ -528,6 +558,8 @@ void moveLinesDown(int linesFound) {
 }
 
 void handleInput() {       
+    printf("\e[2K");
+    
     switch(getKeys()) {
         case 250: // Enter press
             gameState = PAUSE_STATE;
@@ -565,14 +597,14 @@ void handleInput() {
             rot--;
             rot &= 3;
             if (checkBoundaries(0) != 0) {
-                    rot++;
+                rot += tryWallKick(0); // Left bias
             }
             break;
         case 'X':
             rot++;
             rot &= 3;
             if (checkBoundaries(0) != 0) {
-                    rot--;
+                rot -= tryWallKick(1); // Right bias
             }
             break;
         case 'G':

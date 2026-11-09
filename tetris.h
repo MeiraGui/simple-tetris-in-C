@@ -234,6 +234,7 @@ void displayPiece(char flag);
 void displayNextPiece();
 void clearPiece(char flag);
 char checkBoundaries(char flag);
+char tryWallKick(char flag);
 // Line clear functions
 void checkLines();
 void clearLine(int line);
