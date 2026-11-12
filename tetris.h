@@ -20,6 +20,7 @@ enum {
 // Game states to switch between
 enum {
     TITLE_STATE,
+    HIGHSCORE_STATE,
     GAME_STATE,
     PAUSE_STATE,
     GAMEOVER_STATE
@@ -210,6 +211,16 @@ const char  *playArea[] = {"\e[38;5;46m", "\e[38;5;68m"};
 const char  *gameOver[] = {"\e[38;5;46m", "\e[38;5;160m"};
 
 /*
+ * Structs
+*/
+
+typedef struct {
+    unsigned int score;
+    char name[13]; // 12 characters + null terminator
+    char level;
+} HighScore;
+
+/*
  * Function declarations 
  */
 
@@ -217,12 +228,16 @@ const char  *gameOver[] = {"\e[38;5;46m", "\e[38;5;160m"};
 
 // Main loops
 void titleLoop();
+void highScoreLoop();
 void gameLoop();
 void pauseLoop();
 void gameOverLoop();
 // Reset and initialization
 void resetGame();
 void initializeGrid();
+// Save and High scores
+void initSaveFile();
+void highScoreEntry();
 // Main display functions
 void displayTitle();
 void displayGrid();
@@ -242,6 +257,10 @@ void moveLinesDown(int linesFound);
 // Input
 void handleInput();
 
+/* Save and High Score functions */
+void initSaveFile();
+void highScoreEntry();
+
 /* Terminal functions */
 
 #ifndef _WIN32
@@ -250,5 +269,6 @@ void handleSignal(); // Linux only
 void initTerminal();
 void restoreTerminal();
 unsigned char getKeys();
+unsigned char getKeysName();
 
 #endif

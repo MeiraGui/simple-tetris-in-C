@@ -19,42 +19,48 @@
  * Global variables
  */
 
-char running = 1;             // Boolean flag for main loop excecution
-char gameState = TITLE_STATE; // Changes the state the game is in
+char running = 1;              // Boolean flag for main loop excecution
+char gameState = TITLE_STATE;  // Changes the state the game is in
 
-char gameStyle = 1;           // Changes the visuals (0 for Elektronika 60 style, 1 for cleaner)
-char showGhost = 1;           // Boolean flag for showing the ghost piece
+char gameStyle = 1;            // Changes the visuals (0 for Elektronika 60 style, 1 for cleaner)
+char showGhost = 1;            // Boolean flag for showing the ghost piece
 
-char line, column;            // Used for positioning the regular piece
-char ghLine;                  // Used for positioning the ghost piece
-char rot = 0, pieceID = 0;    // Rotation of the piece (0-3) and which one it is (0-6)
-char nextID = 0;              // ID used to display the upcoming piece
+char line, column;             // Used for positioning the regular piece
+char ghLine;                   // Used for positioning the ghost piece
+char rot = 0, pieceID = 0;     // Rotation of the piece (0-3) and which one it is (0-6)
+char nextID = 0;               // ID used to display the upcoming piece
 
 unsigned char clearedLines = 0; // Counter for every line cleared, for every 10 lines, a level increases
 unsigned char level = 0;        // Level the game is on, determines how fast a piece drops
 
-char timer = 0;               // Timer for dropping the piece over time
-char hitFloor = 0;            // Boolean flag to check if the piece has hit the floor
+char timer = 0;                // Timer for dropping the piece over time
+char hitFloor = 0;             // Boolean flag to check if the piece has hit the floor
 
-char dropCount = 0;           // Counter used to give score for quickly dropping a piece (both soft and hard dropping)
-unsigned int  score = 0;      // Score earned when playing the game, fairly self-explanatory
+char dropCount = 0;            // Counter used to give score for quickly dropping a piece (both soft and hard dropping)
+unsigned int  score = 0;       // Score earned when playing the game, fairly self-explanatory
 
 // Empty tile ' .' Filled Tile '[]'
-char Grid[32][32] = {};       // The "play area" of the game, only a 20x20 area is displayed
+char Grid[32][32] = {};        // The "play area" of the game, only a 20x20 area is displayed
 
-unsigned long idum = 0;       // Essentially functions as the "seed" of the random float generator
+unsigned long idum = 0;        // Essentially functions as the "seed" of the random float generator
 
-char screenBuffer[4096];      // All of the text is stored in this buffer before being render to the screen at once
+char placement = -1;           // The placement of the player, if they get a new high score
+
+HighScore highScores[10] = {}; // Array of the top 10 high scores, used for both displaying and ordering them
+
+char screenBuffer[4096];       // All of the text is stored in this buffer before being render to the screen at once
+
+// Framerate constants
+#define FPS 60
+#define FRAME_DELAY 1000000 / FPS // microseconds per frame
 
 int main() {
     initTerminal();
+    initSaveFile();
 
     // Full buffer is enabled so it only prints to the screen when fflush is called
     setvbuf(stdout, screenBuffer, _IOFBF, sizeof(screenBuffer));
 
-    // Framerate variables
-    const int FPS = 60;
-    const int FRAME_DELAY = 1000000 / FPS; // microseconds per frame
     struct timespec start_time, end_time;
     
     idum = time(NULL); // Sets the seed to the current time
@@ -63,10 +69,11 @@ int main() {
         clock_gettime(CLOCK_MONOTONIC, &start_time);
 
         switch (gameState) {
-            case TITLE_STATE:    titleLoop();    break;
-            case GAME_STATE:     gameLoop();     break;
-            case PAUSE_STATE:    pauseLoop();    break;
-            case GAMEOVER_STATE: gameOverLoop(); break;
+            case TITLE_STATE:      titleLoop();     break;
+            case HIGHSCORE_STATE:  highScoreLoop(); break;
+            case GAME_STATE:       gameLoop();      break;
+            case PAUSE_STATE:      pauseLoop();     break;
+            case GAMEOVER_STATE:   gameOverLoop();  break;
         }
 
         // Framerate regulation
@@ -104,6 +111,78 @@ void titleLoop() {
 
     if (input == 'P') {
         gameStyle ^= 1;
+    }
+
+    if (input == 'H') {
+        gameState = HIGHSCORE_STATE;
+    }
+}
+
+void highScoreLoop() {
+    printf("\e[H\e[J");
+
+    // New High Score
+    if (placement != -1) {
+        // Moves all positions after the placement down
+        for (int i = 9; i > placement; i--) {
+            highScores[i] = highScores[i-1];
+        }
+
+        printf("\e[H\e[J");
+
+        // Displays records from the array
+        for (int j = 0; j < 2; j++) {
+            printf("\e[38;5;227m                      New High Score!\n\n");
+            for (int i = 0; i < 10; i++) {
+                if (i == placement) {
+                    if (j == 0) {
+                        // The first time drawing, make the name empty, and place the score and level the player got
+                        printf("\e[38;5;227m       %2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
+                            (i+1), "            ", score, level);
+                    } else {
+                        // The second time, stop early so the player writes the text directly on where it should be
+                        printf("\e[38;5;227m       %2d. \e[39m", (i+1));
+                        highScoreEntry(); 
+                        goto loopExit;
+                    }
+                } else {
+                    printf("\e[38;5;227m       %2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
+                        (i+1), highScores[i].name, highScores[i].score, highScores[i].level);
+                }
+            }
+            printf("\n\e[39m             Type your name and press \e[38;5;227mENTER\e[39m.");
+            printf("\e[H");
+        }
+        loopExit:
+    } else {
+        // Regular Display
+        printf(" \e[38;5;227m                     High scores:\n\n");
+
+        // Displays records from the array
+        for (int i = 0; i < 10; i++) {
+            printf("\e[38;5;227m       %2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
+                (i+1), highScores[i].name, highScores[i].score, highScores[i].level);
+        }
+        printf("\n\e[39mPress \e[38;5;227mENTER\e[39m to start a game or \e[38;5;227m'Q'\e[39m to go back to the title.");
+        fflush(stdout);
+
+        while (1) {
+            unsigned char input = getKeys();
+            if (input == 'Q') {
+                gameState = TITLE_STATE;
+                printf("\e[H\e[J");
+                break;
+            }
+
+            // Enter press check
+            if (input == 250) {
+                resetGame();
+                gameState = GAME_STATE;
+                break;
+            }
+
+            usleep(FRAME_DELAY); // Delay on the loop to not overuse the CPU
+        }
     }
 }
 
@@ -196,25 +275,34 @@ void pauseLoop() {
             running = 0;
             break;
         }
+
+        usleep(FRAME_DELAY); // Delay on the loop to not overuse the CPU
     }
 }
 
 void gameOverLoop() {
     printf("      %s Game Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
-    printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
+    printf("%sENTER%s to check high scores.\n", highlight[gameStyle], regular[gameStyle]);
     fflush(stdout);
 
     while(1) {
         unsigned char input = getKeys();
         
-        if (input == 'R') {
-            resetGame();
-            gameState = GAME_STATE;
-            break;
-        } else if (input == 'Q') {
-            running = 0;
+        // Enter press check
+        if (input == 250) {
+            // Placement check for high score
+            for (int i = 0; i < 10; i++) {
+                if (score > highScores[i].score) {
+                    placement = i;
+                    break;
+                }
+            }
+            
+            gameState = HIGHSCORE_STATE;
             break;
         }
+
+        usleep(FRAME_DELAY); // Delay on the loop to not overuse the CPU
     }
 }
 
@@ -271,16 +359,18 @@ void displayTitle() {
     // H ANSII comand moves the cursor to the top left of the screen
     printf("\e[H");
 
-    printf("        ");
+    printf("          ");
     for (int i = 0; i < 7; i++) {
         printf("%s", color[(i+offset) & 7]);
         printf("%c", letter[i]);
     }
 
     printf("\e[39m"); // Default color
-    printf("\n\n  Press \e[38;5;227mENTER\e[39m to start.");
+    printf("\n\n    Press \e[38;5;227mENTER\e[39m to start.");
 
-    printf("\n\nGame style (\e[38;5;227mP\e[39m to swap): ");
+    printf("\n\nPress \e[38;5;227m'H'\e[39m to view high scores.");
+
+    printf("\n\n  Game style (\e[38;5;227mP\e[39m to swap): ");
     pieceColor(RED);
 
     // titleTimer slows down the rate the colors move
@@ -625,6 +715,110 @@ void handleInput() {
 }
 
 /*
+ * Save and High score functions
+*/
+
+void initSaveFile() {
+    FILE *file = fopen("tetris.sav", "r+b");
+
+    // If the file doesn't exist, create a new one
+    if (file == NULL) {
+        file = fopen("tetris.sav", "wb");
+
+        if (file == NULL) {
+            perror("Error creating save!");
+            exit(1);
+        }
+
+        // 10 Empty high scores are created
+        HighScore dummy = {.score = 0, .name = "            ", .level = 0};
+
+        for (int i = 0; i < 10; i++) {
+            if (fwrite(&dummy, sizeof(HighScore), 1, file) != 1) {
+                perror("Write Fail!\n");
+                exit(1);
+            }
+        }
+
+        fclose(file);
+        file = fopen("tetris.sav", "r+b");
+        if (file == NULL) {
+            perror("Error re-opening save!");
+            exit(1);
+        }
+    }
+        // Copies the 10 instances to an array
+        if (fread(highScores, sizeof(HighScore), 10, file) != 10) {
+            perror("Error loading the 10 highScores!\n");
+            exit(1);
+        }
+
+    fclose(file);
+}
+
+void highScoreEntry() {
+    char name[13] = {};
+    char count = 0;
+
+    #ifdef _WIN32
+        // Code page has to be changed so characters with accents (such as "á") are only 1 byte
+        SetConsoleCP(1252); SetConsoleOutputCP(1252);
+    #endif
+
+    printf("\e[?25h"); // Reactivates cursor
+    while (1) {
+        unsigned char key = getKeysName();
+
+        if (key == 250 && count > 0) {
+            break;
+        } else if (key == 249) {
+            if (count > 0) {    
+                count--;
+                printf("\b \b");
+            }
+            continue;
+        } else if (count < 12) {
+            if (key >= ' ' && key <= '~') {
+                name[count++] = key;
+                putchar(key);
+                fflush(stdout);
+            } else {
+                fflush(stdout);
+            }
+        }
+
+        usleep(FRAME_DELAY); // Delay on the loop to not overuse the CPU
+    }
+
+    name[count] = '\0';
+
+    printf("\e[?25l"); // Disables cursor again
+
+    HighScore newEntry = {.score = score, .name = ' ', .level = level};
+
+    snprintf(newEntry.name, sizeof(newEntry.name), "%-*s", 12, name); // pads all remaining characters with ' '
+
+    highScores[placement] = newEntry;
+
+    FILE *file = fopen("tetris.sav", "r+b");
+    if (file == NULL) {
+        perror("Error re-opening save!");
+        exit(1);
+    }
+
+    // After the array has been modified, write it to the save
+    fwrite(highScores, sizeof(HighScore), 10, file);
+
+    fclose(file);
+
+    #ifdef _WIN32
+        SetConsoleCP(65001); SetConsoleOutputCP(65001); // After the name is typed, the code page is reverted
+    #endif
+
+    placement = -1; // Placement is reset to -1 on exit
+}
+
+/*
  * Terminal functions (changes based on OS)
  */
 
@@ -635,27 +829,27 @@ void initTerminal() {
     // Gets the output handle
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hOut == INVALID_HANDLE_VALUE) {
-        printf("Error getting output handle!\n");
+        perror("Error getting output handle!\n");
         exit(1);
     }
 
     // Gets the current mode of the console
     DWORD dwMode = 0;
     if (!GetConsoleMode(hOut, &dwMode)) {
-        printf("Error getting console mode!\n");
+        perror("Error getting console mode!\n");
         exit(1);
     }
 
     // Enables the virtual terminal prcessing flag for ANSI support
     dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     if (!SetConsoleMode(hOut, dwMode)) {
-        printf("Error activating ANSI support!\n");
+        perror("Error activating ANSI support!\n");
         exit(1);
     }
 
     // Code page is changed to support the "extended ASCII" characters
     if (!SetConsoleCP(65001) || !SetConsoleOutputCP(65001)) {
-        printf("Error setting code page!");
+        perror("Error setting code page!");
         exit(1);
     }
 
@@ -697,6 +891,28 @@ unsigned char getKeys() {
 
         if (input >= 'a' && input <= 'z') { 
             return input & ~32; // Turns lowercase characters into uppercase
+        }
+
+        return input;
+    }
+
+    return 0;
+}
+
+// Used for normalizing inputs for the high score screen
+unsigned char getKeysName() {
+    unsigned char input;
+    
+    if (_kbhit()) {
+        input = _getch();
+        // Enter press check
+        if (input == 13) {
+            return 250;
+        }
+
+        // Backspace check
+        if (input == '\b') {
+            return 249;
         }
 
         return input;
@@ -766,6 +982,7 @@ unsigned char getKeys() {
             }
         }
 
+
         if (input >= 'a' && input <= 'z') { 
             return input & ~32; // Turns lowercase characters into uppercase
         }
@@ -774,5 +991,22 @@ unsigned char getKeys() {
     }
 
     return 0;
+}
+
+// Used for normalizing inputs for the high score screen
+unsigned char getKeysName() {
+    unsigned char input = getchar();
+
+    // Enter press check
+    if (input == '\n') {
+        return 250;
+    }
+
+    // Backspace check
+    if (input == 127) {
+        return 249;
+    }
+
+    return input;
 }
 #endif
