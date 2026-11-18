@@ -12,6 +12,8 @@
 #else
     #include <termios.h>
     #include <signal.h>
+    #include <sys/ioctl.h>
+    #include <stdarg.h>
     struct termios orig_termios; // Original terminal settings to restore
 #endif
 
@@ -48,7 +50,13 @@ char placement = -1;           // The placement of the player, if they get a new
 
 HighScore highScores[10] = {}; // Array of the top 10 high scores, used for both displaying and ordering them
 
-char screenBuffer[4096];       // All of the text is stored in this buffer before being render to the screen at once
+char screenBuffer[8192];       // All of the text is stored in this buffer before being render to the screen at once
+int currWidth = 0;             // The current width of the terminal, used for horizontal padding
+int currHeight = 0;            // The current height of the terminal, used to stop the game if the terminal is too small
+
+// Terminal size constants
+#define MIN_WIDTH 44
+#define MIN_HEIGHT 30
 
 // Framerate constants
 #define FPS 60
@@ -65,8 +73,27 @@ int main() {
     
     idum = time(NULL); // Sets the seed to the current time
 
+    int prevWidth = 0;
+
     while (running) {
         clock_gettime(CLOCK_MONOTONIC, &start_time);
+
+        getTerminalSize(&currWidth, &currHeight);
+        // Clears the screen if the window size changes to (mostly) avoid visual artifacts when resizing
+        if (prevWidth != currWidth) {
+            printf("\e[H\e[J");
+            prevWidth = currWidth;
+        } else {
+            printf("\e[H"); // H ANSI comand moves the cursor to the top left of the screen
+        }
+
+        // Checks if the screen is too small to avoid text wrapping
+        if (currWidth < MIN_WIDTH || currHeight < MIN_HEIGHT) {
+            printf("\e[HThe window is too small!\e[J");
+            fflush(stdout);
+            usleep(FRAME_DELAY);
+            continue;
+        }
 
         switch (gameState) {
             case TITLE_STATE:      titleLoop();     break;
@@ -132,56 +159,53 @@ void highScoreLoop() {
 
         // Displays records from the array
         for (int j = 0; j < 2; j++) {
-            printf("\e[38;5;227m                      New High Score!\n\n");
+            printPadded(14, "\e[38;5;227mNew High Score!\n\n");
             for (int i = 0; i < 10; i++) {
                 if (i == placement) {
                     if (j == 0) {
                         // The first time drawing, make the name empty, and place the score and level the player got
-                        printf("\e[38;5;227m       %2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
+                        printPadded(44,"\e[38;5;227m%2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
                             (i+1), "            ", score, level);
                     } else {
                         // The second time, stop early so the player writes the text directly on where it should be
-                        printf("\e[38;5;227m       %2d. \e[39m", (i+1));
+                        printPadded(44,"\e[38;5;227m%2d. \e[39m", (i+1));
                         highScoreEntry(); 
                         goto loopExit;
                     }
                 } else {
-                    printf("\e[38;5;227m       %2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
+                    printPadded(44,"\e[38;5;227m%2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
                         (i+1), highScores[i].name, highScores[i].score, highScores[i].level);
                 }
             }
-            printf("\n\e[39m             Type your name and press \e[38;5;227mENTER\e[39m.");
+            printf("\n");
+            printPadded(30, "\e[39mType your name and press \e[38;5;227mENTER\e[39m.");
             printf("\e[H");
         }
         loopExit:
-    } else {
-        // Regular Display
-        printf(" \e[38;5;227m                     High scores:\n\n");
+    } else { // Regular Display
+        printPadded(12, "\e[38;5;227mHigh scores:\n\n");
 
         // Displays records from the array
         for (int i = 0; i < 10; i++) {
-            printf("\e[38;5;227m       %2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
+            printPadded(44, "\e[38;5;227m%2d. \e[39m%s Score: \e[38;5;227m%-9d \e[39mLevel: \e[38;5;227m%d\n", 
                 (i+1), highScores[i].name, highScores[i].score, highScores[i].level);
         }
-        printf("\n\e[39mPress \e[38;5;227mENTER\e[39m to start a game or \e[38;5;227m'Q'\e[39m to go back to the title.");
+        printf("\n");
+        printPadded(60, "\e[39mPress \e[38;5;227mENTER\e[39m to start a game or \e[38;5;227m'Q'\e[39m to go back to the title.");
         fflush(stdout);
 
-        while (1) {
-            unsigned char input = getKeys();
-            if (input == 'Q') {
-                gameState = TITLE_STATE;
-                printf("\e[H\e[J");
-                break;
-            }
+        unsigned char input = getKeys();
+        if (input == 'Q') {
+            gameState = TITLE_STATE;
+            printf("\e[H\e[J");
+            return;
+        }
 
-            // Enter press check
-            if (input == 250) {
-                resetGame();
-                gameState = GAME_STATE;
-                break;
-            }
-
-            usleep(FRAME_DELAY); // Delay on the loop to not overuse the CPU
+        // Enter press check
+        if (input == 250) {
+            resetGame();
+            gameState = GAME_STATE;
+            return;
         }
     }
 }
@@ -255,55 +279,49 @@ void gameLoop() {
 }
 
 void pauseLoop() {
-    printf("        Paused!\n");
-    printf("(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
+    renderFrame(1);
+    printPadded(6, "Paused!\n");
+    printPadded(28, "(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
     fflush(stdout);
 
-    while(1) {
-        unsigned char input = getKeys();
-        
-        // Pressing enter unpauses the game
-        if (input == 250) {
-            gameState = GAME_STATE;
-            printf("\e[1J"); // Clears the pause text when the game is unpaused
-            break;
-        } else if (input == 'R') {
-            resetGame();
-            gameState = GAME_STATE;
-            break;
-        } else if (input == 'Q') {
-            running = 0;
-            break;
-        }
-
-        usleep(FRAME_DELAY); // Delay on the loop to not overuse the CPU
+    unsigned char input = getKeys();
+    
+    // Pressing enter unpauses the game
+    if (input == 250) {
+        gameState = GAME_STATE;
+        printf("\e[1J"); // Clears the pause text when the game is unpaused
+        return;
+    } else if (input == 'R') {
+        resetGame();
+        gameState = GAME_STATE;
+        return;
+    } else if (input == 'Q') {
+        running = 0;
+        return;
     }
 }
 
 void gameOverLoop() {
-    printf("      %s Game Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
-    printf("%sENTER%s to check high scores.\n", highlight[gameStyle], regular[gameStyle]);
+    renderFrame(1);
+    printPadded(10, "%sGame Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
+    printPadded(26, "%sENTER%s to check high scores.\n", highlight[gameStyle], regular[gameStyle]);
     fflush(stdout);
 
-    while(1) {
-        unsigned char input = getKeys();
+    unsigned char input = getKeys();
         
-        // Enter press check
-        if (input == 250) {
-            // Placement check for high score
-            for (int i = 0; i < 10; i++) {
-                if (score > highScores[i].score) {
-                    placement = i;
-                    break;
-                }
+    // Enter press check
+    if (input == 250) {
+        // Placement check for high score
+        for (int i = 0; i < 10; i++) {
+            if (score > highScores[i].score) {
+                placement = i;
+                break;
             }
-            
-            gameState = HIGHSCORE_STATE;
-            break;
         }
-
-        usleep(FRAME_DELAY); // Delay on the loop to not overuse the CPU
-    }
+        
+        gameState = HIGHSCORE_STATE;
+        return;
+    }  
 }
 
 void resetGame() {
@@ -342,39 +360,48 @@ void initializeGrid() {
     }
 }
 
-char offset = 0; // Switches the colors of each letter
+char offset = 0;                // Switches the "base color" of the letters
+char changed[] = {0,0,0,0,0,0}; // Which line has had its color changed
+char cont = 0;                  // Used to change each value in the array
 void displayTitle() {
-    static const char *color[] = {
-        "\e[38;5;160m", // Red
-        "\e[38;5;172m", // Orange
-        "\e[38;5;184m", // Yellow
-        "\e[38;5;34m",  // Green
-        "\e[38;5;80m",  // Cyan
-        "\e[38;5;27m",  // Blue
-        "\e[38;5;129m", // Magenta
-        "\e[39m"        // Default color
-        };
-    static const char letter[] = {"Tetris!"};
-    
-    // H ANSII comand moves the cursor to the top left of the screen
-    printf("\e[H");
+    char isBlock = 0;
 
-    printf("          ");
-    for (int i = 0; i < 7; i++) {
-        printf("%s", color[(i+offset) & 7]);
-        printf("%c", letter[i]);
+    for (int i = 0; i < 6; i++) {
+        //printf("%d", changed[i]);
+        printPadded(44, "");
+        for (int j = 0; j < 45; j++) {
+            if (letter[i][j] == 7 && isBlock == 0) { 
+                printf("%s", color[(offset + changed[i]) & 7]);
+                isBlock = 1;
+            } else if (letter[i][j] != 7 && isBlock != 0) { 
+                printf("\e[38;5;227m");
+                isBlock = 0;
+            }
+            printf("%s", block[letter[i][j]]);
+        }
     }
 
-    printf("\e[39m"); // Default color
-    printf("\n\n    Press \e[38;5;227mENTER\e[39m to start.");
+    printf("\e[39m\n"); // Default color
+    printPadded(20, "Press \e[38;5;227mENTER\e[39m to start.\n");
+    printPadded(30, "Press \e[38;5;227m'H'\e[39m to view high scores.\n");
+    printPadded(26, "Game style (\e[38;5;227mP\e[39m to swap): "); pieceColor(RED);
 
-    printf("\n\nPress \e[38;5;227m'H'\e[39m to view high scores.");
-
-    printf("\n\n  Game style (\e[38;5;227mP\e[39m to swap): ");
-    pieceColor(RED);
+    printf("\n\n");
+    printPadded(32, "\e[39mOriginal game by \e[38;5;227mAlexey Pajitnov\e[39m.\n");
+    printPadded(18, "Remade by \e[38;5;227mMeiraGui\e[39m.");
 
     // titleTimer slows down the rate the colors move
-    if ((titleTimer % 10) == 0) offset = (offset - 1) & 7;
+    if ((titleTimer % 10) == 0) {
+        changed[cont++] ^= 1;
+    }
+
+    if (cont > 5) {
+        cont = 0;
+        for (int i = 0; i < 6; i++) { 
+            changed[i] = 0; // Resets the array
+        }
+        offset = (offset + 1) & 7; // Moves onto the next color
+    }
 
     fflush(stdout);
 }
@@ -393,10 +420,12 @@ void displayGrid() {
         printf("\n");
     }
 #else
-    printf("   %sNext%s\n", highlight[gameStyle], regular[gameStyle]);
-    printf("%s", visualsTable[gameStyle][0]); // Next outline top
+    char length = gameStyle ? 22 : 24;
+
+    printPadded(length, "   %sNext%s\n", highlight[gameStyle], regular[gameStyle]);
+    printPadded(length, "%s", visualsTable[gameStyle][0]); // Next outline top
     for (int i = 3; i < 5; i++) {
-        printf("%s", visualsTable[gameStyle][1]); // Next outline middle
+        printPadded(length, "%s", visualsTable[gameStyle][1]); // Next outline middle
         for (int j = 4; j < 12; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -410,13 +439,13 @@ void displayGrid() {
         if (i == 4) printf(" Level: %s%d%s", highlight[gameStyle], level, regular[gameStyle]);
         printf("\n");
     }
-    printf("%s", visualsTable[gameStyle][2]); // Next outline bottom
-    printf("%s", visualsTable[gameStyle][3]); // Dividing line
+    printPadded(length, "%s", visualsTable[gameStyle][2]); // Next outline bottom
+    if (gameStyle) printPadded(length, "%s", visualsTable[gameStyle][3]); // Dividing line
 
     for (int i = 10; i < 30; i++) {
         // Non piece tiles can either be bright blue like the IBM PC version or a bright green
         printf("%s", playArea[gameStyle]);
-        printf("%s", visualsTable[gameStyle][4]); // Play area left
+        printPadded(length, "%s", visualsTable[gameStyle][4]); // Play area left
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -426,15 +455,13 @@ void displayGrid() {
         }
         printf("%s", visualsTable[gameStyle][5]); // Play area right
     }
-    printf("%s", visualsTable[gameStyle][6]); // Play area bottom
+    printPadded(length, "%s", visualsTable[gameStyle][6]); // Play area bottom
+    if (!gameStyle) printPadded(20, "%s", visualsTable[gameStyle][7]); // Play area bottom
     printf("%s", regular[gameStyle]); // Default color
 #endif
 }
 
 void renderFrame(char flag) {
-    // H ANSII comand moves the cursor to the top left of the screen
-    printf("\e[H");
-
     // the flag is to not display the piece after it drops, to not have issues with clearing lines
     if (flag) {
         if (showGhost) displayPiece(1); // Ghost piece
@@ -611,6 +638,7 @@ void checkLines() {
 
     // Pauses briefly to showcase the cleared lines before moving down and to give slight breathing room
     renderFrame(0);
+    printf("\e[H");
     usleep(1000000 / 5);
     // The input buffer is cleared to avoid issues with holding down during this pause
 #ifdef _WIN32
@@ -647,9 +675,7 @@ void moveLinesDown(int linesFound) {
     }
 }
 
-void handleInput() {       
-    printf("\e[2K");
-    
+void handleInput() {
     switch(getKeys()) {
         case 250: // Enter press
             gameState = PAUSE_STATE;
@@ -856,13 +882,13 @@ void initTerminal() {
     timeBeginPeriod(1); // Extra timing precision
 
     printf("\e[?25l"); // Disables flashing cursor for cleaner display
-    printf("\e[2J\e[H"); // Clears the screen once at the start
 }
 
 // Enables the cursor and returns the timing precision to normal
 void restoreTerminal() {
     timeEndPeriod(1);
     printf("\e[?25h"); // Reactivates cursor on exit
+    fflush(stdout);
 }
 
 // A function to normalize the keys is needed since both OSes handle input differently 
@@ -921,6 +947,20 @@ unsigned char getKeysName() {
     return 0;
 }
 
+void getTerminalSize(int *width, int *height) {
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
+        *width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        *height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+        return;
+    }
+
+    // Default terminal sizes as a failsafe
+    *width = 80;
+    *height = 24;
+}
+
 // Linux
 #else
 // Reverts the terminal changes if the game is closed early with ctrl C
@@ -948,13 +988,13 @@ void initTerminal() {
     signal(SIGTERM, handleSignal);
 
     printf("\e[?25l"); // Disables flashing cursor for cleaner display
-    printf("\e[2J\e[H"); // Clears the screen once at the start
 }
 
 // Changes the terminal mode to the regular procedure, reading inputs as buffers
 void restoreTerminal() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
     printf("\e[?25h"); // Reactivates cursor on exit
+    fflush(stdout);
 }
 
 // A function to normalize the keys is needed since both OSes handle input differently 
@@ -1009,4 +1049,30 @@ unsigned char getKeysName() {
 
     return input;
 }
+
+void getTerminalSize(int *width, int *height) {
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0 && w.ws_row > 0) {
+        *width = w.ws_col;
+        *height = w.ws_row;
+        return;
+    }
+
+    // Default terminal sizes as a failsafe
+    *width = 80;
+    *height = 24;
+}
 #endif
+
+// Prints text to the screen padded using the length parameter as a base,
+// length should be the amount of characters used in the line that's being padded (ideally an even number)
+void printPadded(char length, const char *format, ...) {
+    int padding = currWidth > length ? (currWidth - length) / 2 : 0;
+    
+    printf("%*s", padding, "");
+
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+}

@@ -190,7 +190,8 @@ const char *eletronika[] = {"\n",   // Next outline top
                             "",     // Dividing line
                             "<!",   // Play area left
                             "!>\n", // Play area right
-                            "<!====================!>\n  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n", // Play area bottom
+                            "<!====================!>\n",      // Play area bottom
+                            "\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n" // Play area bottom 2
                         };
 
      const char *clean[] = {"┌────────┐\n",             // Next outline top
@@ -200,6 +201,7 @@ const char *eletronika[] = {"\n",   // Next outline top
                             "║",                        // Play area left
                             "║\n",                      // Play area right
                             "╚════════════════════╝\n", // Play area bottom
+                            ""                          // Play area bottom 2
                         };
 
 const char **visualsTable[] = {eletronika, clean};
@@ -209,6 +211,36 @@ const char   *regular[] = {"\e[38;5;46m", "\e[39m"};
 const char *highlight[] = {"\e[38;5;46m", "\e[38;5;227m",};
 const char  *playArea[] = {"\e[38;5;46m", "\e[38;5;68m"};
 const char  *gameOver[] = {"\e[38;5;46m", "\e[38;5;160m"};
+
+const char *color[] = {
+        "\e[38;5;27m",  // Blue
+        "\e[38;5;34m",  // Green
+        "\e[38;5;80m",  // Cyan
+        "\e[38;5;160m", // Red
+        "\e[38;5;129m", // Magenta
+        "\e[38;5;172m", // Orange
+        "\e[38;5;184m", // Yellow
+        "\e[39m"        // Default color
+    };
+
+const char *block[] = {
+        " ",
+        "║",
+        "╗",
+        "╝",
+        "╚",
+        "╔",
+        "═",
+        "█",
+        "\n"
+    };
+
+char letter[6][45] = {7,7,7,7,7,7,2,0,7,7,7,7,7,7,2,0,7,7,7,7,7,7,2,0,7,7,7,7,7,7,2,0,0,7,7,2,0,7,7,7,7,7,7,2,8,
+                      0,0,7,7,5,6,3,0,7,7,5,6,6,6,3,0,0,0,7,7,5,6,3,0,7,7,5,6,6,7,7,2,0,7,7,1,0,7,7,5,6,6,6,3,8,
+                      0,0,7,7,1,0,0,0,7,7,7,7,7,1,0,0,0,0,7,7,1,0,0,0,7,7,7,7,7,7,5,3,0,7,7,1,0,7,7,7,7,7,7,2,8,
+                      0,0,7,7,1,0,0,0,7,7,5,6,6,3,0,0,0,0,7,7,1,0,0,0,7,7,5,6,6,7,7,2,0,7,7,1,0,4,6,6,6,7,7,1,8,
+                      0,0,7,7,1,0,0,0,7,7,7,7,7,7,1,0,0,0,7,7,1,0,0,0,7,7,1,0,0,7,7,1,0,7,7,1,0,7,7,7,7,7,7,1,8,
+                      0,0,4,6,3,0,0,0,4,6,6,6,6,6,3,0,0,0,4,6,3,0,0,0,4,6,3,0,0,4,6,3,0,4,6,3,0,4,6,6,6,6,6,3,8,};
 
 /*
  * Structs
@@ -270,5 +302,8 @@ void initTerminal();
 void restoreTerminal();
 unsigned char getKeys();
 unsigned char getKeysName();
+int getTerminalWidth();
+void getTerminalSize(int *width, int *height);
+void printPadded(char length, const char *format, ...);
 
 #endif
