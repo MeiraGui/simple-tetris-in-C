@@ -187,7 +187,6 @@ const char (*const pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_
 const char *eletronika[] = {"\n",   // Next outline top
                             " ",    // Next outline middle
                             "\n",   // Next outline bottom
-                            "",     // Dividing line
                             "<!",   // Play area left
                             "!>\n", // Play area right
                             "<!====================!>\n",      // Play area bottom
@@ -197,11 +196,10 @@ const char *eletronika[] = {"\n",   // Next outline top
      const char *clean[] = {"┌────────┐\n",             // Next outline top
                             "│",                        // Next outline middle
                             "└────────┘\n",             // Next outline bottom
-                            "──────────────────────\n", // Dividing line
                             "║",                        // Play area left
                             "║\n",                      // Play area right
                             "╚════════════════════╝\n", // Play area bottom
-                            ""                          // Play area bottom 2
+                            "──────────────────────\n", // Dividing line
                         };
 
 const char **visualsTable[] = {eletronika, clean};

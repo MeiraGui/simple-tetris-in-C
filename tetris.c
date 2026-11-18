@@ -440,12 +440,12 @@ void displayGrid() {
         printf("\n");
     }
     printPadded(length, "%s", visualsTable[gameStyle][2]); // Next outline bottom
-    if (gameStyle) printPadded(length, "%s", visualsTable[gameStyle][3]); // Dividing line
+    if (gameStyle) printPadded(length, "%s", visualsTable[gameStyle][6]); // Dividing line (clean only)
 
     for (int i = 10; i < 30; i++) {
         // Non piece tiles can either be bright blue like the IBM PC version or a bright green
         printf("%s", playArea[gameStyle]);
-        printPadded(length, "%s", visualsTable[gameStyle][4]); // Play area left
+        printPadded(length, "%s", visualsTable[gameStyle][3]); // Play area left
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -453,10 +453,10 @@ void displayGrid() {
                 printf("%c%c", Grid[i][j],Grid[i][j+1]);
             }
         }
-        printf("%s", visualsTable[gameStyle][5]); // Play area right
+        printf("%s", visualsTable[gameStyle][4]); // Play area right
     }
-    printPadded(length, "%s", visualsTable[gameStyle][6]); // Play area bottom
-    if (!gameStyle) printPadded(20, "%s", visualsTable[gameStyle][7]); // Play area bottom
+    printPadded(length, "%s", visualsTable[gameStyle][5]); // Play area bottom
+    if (!gameStyle) printPadded(20, "%s", visualsTable[gameStyle][6]); // Play area bottom 2 (Eletronika only)
     printf("%s", regular[gameStyle]); // Default color
 #endif
 }
