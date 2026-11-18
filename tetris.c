@@ -280,7 +280,7 @@ void gameLoop() {
 
 void pauseLoop() {
     renderFrame(1);
-    printPadded(6, "Paused!\n");
+    printPadded(6, "%sPaused!\n", regular[gameStyle]);
     printPadded(28, "(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
     fflush(stdout);
 
@@ -442,9 +442,9 @@ void displayGrid() {
     printPadded(length, "%s", visualsTable[gameStyle][2]); // Next outline bottom
     if (gameStyle) printPadded(length, "%s", visualsTable[gameStyle][6]); // Dividing line (clean only)
 
+    // Non piece tiles can either be bright blue like the IBM PC version or a bright green
+    printf("%s", playArea[gameStyle]);
     for (int i = 10; i < 30; i++) {
-        // Non piece tiles can either be bright blue like the IBM PC version or a bright green
-        printf("%s", playArea[gameStyle]);
         printPadded(length, "%s", visualsTable[gameStyle][3]); // Play area left
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
@@ -457,7 +457,6 @@ void displayGrid() {
     }
     printPadded(length, "%s", visualsTable[gameStyle][5]); // Play area bottom
     if (!gameStyle) printPadded(20, "%s", visualsTable[gameStyle][6]); // Play area bottom 2 (Eletronika only)
-    printf("%s", regular[gameStyle]); // Default color
 #endif
 }
 
