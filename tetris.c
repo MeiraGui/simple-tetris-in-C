@@ -210,8 +210,8 @@ void highScoreLoop() {
     }
 }
 
-// Based on the Game Boy version
-char fallSpeeds[26] = {52, 48, 44, 40, 36, 32, 27, 21, 16, 10, 9, 8, 7, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 1, 1};
+// Based on the NES version
+char fallSpeeds[26] = {48, 43, 38, 33, 28, 23, 18, 13, 8, 6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1};
 void gameLoop() {
     if (hitFloor) {
         char newID = randomPieceID();
@@ -260,7 +260,7 @@ void gameLoop() {
     ghLine--;
 
     // Every couple of frames the piece automatically moves down a line
-    if (timer++ > fallSpeeds[level]) {
+    if (++timer > fallSpeeds[level]) {
         timer = 0;
         line++;
 
@@ -279,7 +279,7 @@ void gameLoop() {
 }
 
 void pauseLoop() {
-    renderFrame(1);
+    printf("\e[H\e[J");
     printPadded(6, "%sPaused!\n", regular[gameStyle]);
     printPadded(28, "(%s'R'%s to reset or %s'Q'%s to exit)\n", highlight[gameStyle], regular[gameStyle], highlight[gameStyle], regular[gameStyle]);
     fflush(stdout);
@@ -352,7 +352,7 @@ void initializeGrid() {
         }
     }
 
-    for (int i = 8; i < 30; i++) {
+    for (int i = 9; i < 30; i++) {
         for (int j = 6; j < 26; j += 2) {
             Grid[i][j] = ' ';
             Grid[i][j+1] = '.';
@@ -360,18 +360,16 @@ void initializeGrid() {
     }
 }
 
-char offset = 0;                // Switches the "base color" of the letters
-char changed[] = {0,0,0,0,0,0}; // Which line has had its color changed
-char cont = 0;                  // Used to change each value in the array
+char offset = 0;       // Switches the "base color" of the letters
+char changedColor = 0; // Used to make every line of the letters change color sequentially
 void displayTitle() {
     char isBlock = 0;
 
     for (int i = 0; i < 6; i++) {
-        //printf("%d", changed[i]);
         printPadded(44, "");
         for (int j = 0; j < 45; j++) {
             if (letter[i][j] == 7 && isBlock == 0) { 
-                printf("%s", color[(offset + changed[i]) & 7]);
+                printf("%s", color[(offset + (i < changedColor)) & 7]);
                 isBlock = 1;
             } else if (letter[i][j] != 7 && isBlock != 0) { 
                 printf("\e[38;5;227m");
@@ -388,19 +386,15 @@ void displayTitle() {
 
     printf("\n\n");
     printPadded(32, "\e[39mOriginal game by \e[38;5;227mAlexey Pajitnov\e[39m.\n");
-    printPadded(18, "Remade by \e[38;5;227mMeiraGui\e[39m.");
+    printPadded(26, "Remade by \e[38;5;227mGuilherme Meira\e[39m.");
 
     // titleTimer slows down the rate the colors move
     if ((titleTimer % 10) == 0) {
-        changed[cont++] ^= 1;
-    }
-
-    if (cont > 5) {
-        cont = 0;
-        for (int i = 0; i < 6; i++) { 
-            changed[i] = 0; // Resets the array
+        if (changedColor++ > 5) {
+            changedColor = 0;
+            offset = (offset + 1) & 7; // Moves onto the next color
         }
-        offset = (offset + 1) & 7; // Moves onto the next color
+
     }
 
     fflush(stdout);
@@ -661,7 +655,7 @@ void clearLine(int line) {
 
 void moveLinesDown(int linesFound) {
     for (int l = 0; l < linesFound; l++) {
-        for (int i = foundLinesArr[l]; i >= 8; i--) {
+        for (int i = foundLinesArr[l]; i >= 9; i--) {
             for (int j = 6; j < 26; j += 2) {
                 // Move every tile down
                 Grid[i+1][j] = Grid[i][j];
