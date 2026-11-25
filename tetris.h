@@ -184,22 +184,22 @@ const char (*const pieceTable[])[4][4] = {T_piece, J_piece, Z_piece, O_piece, S_
  */
 
 // Elektronika 60 style visuals are based on the original version of Tetris
-const char *eletronika[] = {"\n",   // Next outline top
+const char *eletronika[] = {"          ",   // Next outline top
                             " ",    // Next outline middle
-                            "\n",   // Next outline bottom
+                            "          ",   // Next outline bottom
                             "<!",   // Play area left
-                            "!>\n", // Play area right
+                            "!>", // Play area right
                             "<!====================!>\n",      // Play area bottom
                             "\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\n" // Play area bottom 2
                         };
 
-     const char *clean[] = {"┌────────┐\n",             // Next outline top
+     const char *clean[] = {"┌────────┐",               // Next outline top
                             "│",                        // Next outline middle
-                            "└────────┘\n",             // Next outline bottom
+                            "└────────┘",               // Next outline bottom
                             "║",                        // Play area left
-                            "║\n",                      // Play area right
+                            "║",                        // Play area right
                             "╚════════════════════╝\n", // Play area bottom
-                            "──────────────────────\n", // Dividing line
+                            "╔════════════════════╗\n", // Play area top
                         };
 
 const char **visualsTable[] = {eletronika, clean};
@@ -272,6 +272,8 @@ void highScoreEntry();
 // Main display functions
 void displayTitle();
 void displayGrid();
+void displayLeftColumns(char line);
+void displayRightColumns(char line);
 void renderFrame(char flag);
 // Piece display and movement
 char randomPieceID();

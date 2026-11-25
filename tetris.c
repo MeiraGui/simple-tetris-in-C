@@ -55,8 +55,8 @@ int currWidth = 0;             // The current width of the terminal, used for ho
 int currHeight = 0;            // The current height of the terminal, used to stop the game if the terminal is too small
 
 // Terminal size constants
-#define MIN_WIDTH 44
-#define MIN_HEIGHT 30
+#define MIN_WIDTH 60
+#define MIN_HEIGHT 27
 
 // Framerate constants
 #define FPS 60
@@ -102,6 +102,8 @@ int main() {
             case PAUSE_STATE:      pauseLoop();     break;
             case GAMEOVER_STATE:   gameOverLoop();  break;
         }
+
+        randomPieceID(); // Advances the RNG every frame for some extra variety
 
         // Framerate regulation
         clock_gettime(CLOCK_MONOTONIC, &end_time);
@@ -274,7 +276,8 @@ void gameLoop() {
         }
     }
 
-    randomPieceID(); // Advances the RNG every frame for some extra variety
+    if (score > 999999999) score = 999999999; // score cap
+
     renderFrame(1);
 }
 
@@ -296,7 +299,8 @@ void pauseLoop() {
         gameState = GAME_STATE;
         return;
     } else if (input == 'Q') {
-        running = 0;
+        gameState = TITLE_STATE;
+        printf("\e[H\e[J");
         return;
     }
 }
@@ -304,7 +308,7 @@ void pauseLoop() {
 void gameOverLoop() {
     renderFrame(1);
     printPadded(10, "%sGame Over!%s\n", gameOver[gameStyle], regular[gameStyle]);
-    printPadded(26, "%sENTER%s to check high scores.\n", highlight[gameStyle], regular[gameStyle]);
+    printPadded(26, "%sENTER%s to check high scores.%s\n", highlight[gameStyle], regular[gameStyle], playArea[gameStyle]);
     fflush(stdout);
 
     unsigned char input = getKeys();
@@ -414,32 +418,19 @@ void displayGrid() {
         printf("\n");
     }
 #else
-    char length = gameStyle ? 22 : 24;
+    char length = gameStyle ? 46 : 48;
 
-    printPadded(length, "   %sNext%s\n", highlight[gameStyle], regular[gameStyle]);
-    printPadded(length, "%s", visualsTable[gameStyle][0]); // Next outline top
-    for (int i = 3; i < 5; i++) {
-        printPadded(length, "%s", visualsTable[gameStyle][1]); // Next outline middle
-        for (int j = 4; j < 12; j += 2) {
-            if (Grid[i][j] != ' ') { 
-                pieceColor(Grid[i][j]);
-            } else {
-                printf("%c%c", Grid[i][j],Grid[i][j+1]);
-            }
-        }
-        printf("%s", regular[gameStyle]); // Default color
-        printf("%s", visualsTable[gameStyle][1]); // Next outline middle
-        if (i == 3) printf(" Score: %s%d%s", highlight[gameStyle], score, regular[gameStyle]);
-        if (i == 4) printf(" Level: %s%d%s", highlight[gameStyle], level, regular[gameStyle]);
-        printf("\n");
-    }
-    printPadded(length, "%s", visualsTable[gameStyle][2]); // Next outline bottom
-    if (gameStyle) printPadded(length, "%s", visualsTable[gameStyle][6]); // Dividing line (clean only)
+    printf("\e[H\e[2K\n");
+    if (gameStyle) printPadded(length - 24, "%s", visualsTable[gameStyle][6]); // Play area top (clean only)
 
     // Non piece tiles can either be bright blue like the IBM PC version or a bright green
     printf("%s", playArea[gameStyle]);
     for (int i = 10; i < 30; i++) {
-        printPadded(length, "%s", visualsTable[gameStyle][3]); // Play area left
+        printPadded(length, "");
+        displayLeftColumns(i);
+        
+        // Non piece tiles can either be bright blue like the IBM PC version or a bright green
+        printf("%s%s", playArea[gameStyle], visualsTable[gameStyle][3]); // Play area left
         for (int j = 6; j < 26; j += 2) {
             if (Grid[i][j] != ' ') { 
                 pieceColor(Grid[i][j]);
@@ -448,10 +439,57 @@ void displayGrid() {
             }
         }
         printf("%s", visualsTable[gameStyle][4]); // Play area right
+
+        displayRightColumns(i);
     }
-    printPadded(length, "%s", visualsTable[gameStyle][5]); // Play area bottom
+    printPadded(length - 24, "%s", visualsTable[gameStyle][5]); // Play area bottom
     if (!gameStyle) printPadded(20, "%s", visualsTable[gameStyle][6]); // Play area bottom 2 (Eletronika only)
 #endif
+}
+
+// Shows the next piece
+void displayLeftColumns(char line) {
+    switch (line) {
+        case 18: 
+            printf("%s   Next     ", highlight[gameStyle]); 
+            break;
+        case 19: 
+            printf("%s%s  ", regular[gameStyle], visualsTable[gameStyle][0]); // Next outline top
+            break;
+        case 20: case 21: {
+                printf("%s%s", regular[gameStyle], visualsTable[gameStyle][1]); // Next outline middle
+                char nextLine = line - 17;
+                for (int j = 4; j < 12; j += 2) {
+                    if (Grid[nextLine][j] != ' ') { 
+                        pieceColor(Grid[nextLine][j]);
+                    } else {
+                        printf("%c%c", Grid[nextLine][j],Grid[nextLine][j+1]);
+                    }
+                }
+                printf("%s%s  ", regular[gameStyle], visualsTable[gameStyle][1]); // Next outline middle
+                break;
+            }
+        case 22: 
+            printf("%s%s  ", regular[gameStyle], visualsTable[gameStyle][2]); // Next outline bottom
+            break;
+        default: printf("            "); break;
+    }
+}
+
+// Shows score level and lines
+void displayRightColumns(char line) {
+    switch (line) {
+        case 19:
+            printf("%s  Score: %s%d\n", regular[gameStyle], highlight[gameStyle], score);
+            break;
+        case 20:
+            printf("%s  Level: %s%d\n", regular[gameStyle], highlight[gameStyle], level);
+            break;
+        case 21:
+            printf("%s  Lines: %s%d\n", regular[gameStyle], highlight[gameStyle], clearedLines);
+            break;
+        default: printf("          \n"); break;
+    }
 }
 
 void renderFrame(char flag) {
